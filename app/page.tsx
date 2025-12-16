@@ -52,6 +52,21 @@ const Icons = {
       <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-1.02" />
     </svg>
   ),
+  Mermaid: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v18" />
+      <path d="M5 8l7-5 7 5" />
+      <path d="M5 16l7 5 7-5" />
+    </svg>
+  ),
+  Collapse: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="4 14 10 14 10 20" />
+      <polyline points="20 10 14 10 14 4" />
+      <line x1="14" y1="10" x2="21" y2="3" />
+      <line x1="3" y1="21" x2="10" y2="14" />
+    </svg>
+  ),
 };
 
 // Toast notification component
@@ -72,6 +87,7 @@ export default function Home() {
   const mindMapRef = useRef<MindMapRef>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mermaidInputRef = useRef<HTMLInputElement>(null);
   const [initialData, setInitialData] = useState<MindElixirData | undefined>(undefined);
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
@@ -117,6 +133,8 @@ export default function Home() {
           const data = JSON.parse(content) as MindElixirData;
           if (mindMapRef.current && data.nodeData) {
             mindMapRef.current.refresh(data);
+            // Collapse all after a short delay to let the render complete
+            setTimeout(() => mindMapRef.current?.collapseAll(), 300);
             showToast('Mind map loaded!', 'success');
           } else {
             showToast('Invalid file format', 'error');
@@ -189,6 +207,61 @@ export default function Home() {
     }
   }, [showToast]);
 
+  // Open Mermaid file
+  const handleOpenMermaid = useCallback(() => {
+    mermaidInputRef.current?.click();
+  }, []);
+
+  const handleMermaidFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const content = e.target?.result as string;
+          if (mindMapRef.current && content.trim()) {
+            mindMapRef.current.setMermaid(content);
+            // Collapse all after a short delay to let the render complete
+            setTimeout(() => mindMapRef.current?.collapseAll(), 300);
+            showToast('Mermaid loaded!', 'success');
+          } else {
+            showToast('Invalid Mermaid file', 'error');
+          }
+        } catch {
+          showToast('Failed to parse Mermaid', 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
+    if (mermaidInputRef.current) {
+      mermaidInputRef.current.value = '';
+    }
+  }, [showToast]);
+
+  // Save Mermaid to disk
+  const handleSaveMermaid = useCallback(() => {
+    if (mindMapRef.current) {
+      const mermaid = mindMapRef.current.getMermaid();
+      const blob = new Blob([mermaid], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mindmap-${Date.now()}.mmd`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Mermaid saved!', 'success');
+    }
+  }, [showToast]);
+
+  const handleCollapse = useCallback(() => {
+    if (mindMapRef.current) {
+      mindMapRef.current.collapseAll();
+      showToast('Nodes collapsed', 'success');
+    }
+  }, [showToast]);
+
   return (
     <main className="mindmap-container">
       {/* Header */}
@@ -206,6 +279,18 @@ export default function Home() {
             <Icons.Save />
             <span>Save JSON</span>
           </button>
+          <button className="btn-header" onClick={handleOpenMermaid} title="Load Mermaid file">
+            <Icons.Mermaid />
+            <span>Load Mermaid</span>
+          </button>
+          <button className="btn-header" onClick={handleSaveMermaid} title="Save as Mermaid">
+            <Icons.Mermaid />
+            <span>Save Mermaid</span>
+          </button>
+          <button className="btn-header" onClick={handleCollapse} title="Collapse all except root and first level">
+            <Icons.Collapse />
+            <span>Collapse</span>
+          </button>
           <button className="btn-header" onClick={handleSaveSvg} title="Save as SVG">
             <Icons.Image />
             <span>Save SVG</span>
@@ -220,6 +305,13 @@ export default function Home() {
           type="file"
           accept=".json"
           onChange={handleFileChange}
+          style={{ display: 'none' }}
+        />
+        <input
+          ref={mermaidInputRef}
+          type="file"
+          accept=".mmd,.md,.txt"
+          onChange={handleMermaidFileChange}
           style={{ display: 'none' }}
         />
       </header>

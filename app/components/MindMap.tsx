@@ -15,6 +15,7 @@ export interface MindMapRef {
     exportSvg: () => Promise<string>;
     getMermaid: () => string;
     setMermaid: (mermaid: string) => void;
+    collapseAll: () => void;
 }
 
 // Node type for internal processing
@@ -203,6 +204,8 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, onDataChang
         getContainer: () => containerRef.current,
         toCenter: () => {
             if (mindRef.current) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (mindRef.current as any).scale(1);
                 mindRef.current.toCenter();
             }
         },
@@ -234,6 +237,39 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, onDataChang
             const data = mermaidToData(mermaid);
             if (mindRef.current) {
                 mindRef.current.refresh(data);
+            }
+        },
+        collapseAll: () => {
+            if (mindRef.current) {
+                const mind = mindRef.current;
+                const data = mind.getData(); // Get current data clone/reference
+
+                // Helper to modify expansion state
+                const processNode = (node: any, depth: number) => {
+                    // Only Level 0 (Root) is expanded.
+                    // This shows Level 1 nodes, but collapses them (hiding Level 2+)
+                    if (depth === 0) {
+                        node.expanded = true;
+                    }
+                    // Level 1+: Collapsed
+                    else {
+                        node.expanded = false;
+                    }
+
+                    if (node.children && node.children.length > 0) {
+                        node.children.forEach((child: any) => processNode(child, depth + 1));
+                    }
+                };
+
+                if (data.nodeData) {
+                    processNode(data.nodeData, 0);
+                    mind.refresh(data); // Re-render with updated expansion states
+
+                    // Reset zoom and center
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (mind as any).scale(1);
+                    mind.toCenter();
+                }
             }
         },
     }));
