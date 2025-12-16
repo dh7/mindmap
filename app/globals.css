@@ -90,28 +90,85 @@ body {
   background: linear-gradient(135deg, #f87171, #ef4444);
 }
 
-/* Toolbar */
-.toolbar {
+/* Header */
+.header {
   position: fixed;
-  top: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
   display: flex;
-  gap: 0.75rem;
-  background: rgba(15, 23, 42, 0.8);
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  background: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(20px);
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--glass-border);
   z-index: 1000;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.header-brand svg {
+  color: var(--primary-light);
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-header {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 0.5rem 1rem;
+  color: var(--foreground);
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-header:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-header.btn-accent {
+  background: linear-gradient(135deg, var(--accent), #059669);
+  border: none;
+}
+
+.btn-header.btn-accent:hover {
+  background: linear-gradient(135deg, #34d399, var(--accent));
+}
+
+/* Mind map content area */
+.mindmap-content {
+  position: fixed;
+  top: 60px;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 /* Mind map container */
 .mindmap-container {
   width: 100vw;
   height: 100vh;
-  background: 
+  background:
     radial-gradient(ellipse at top, rgba(99, 102, 241, 0.15), transparent 50%),
     radial-gradient(ellipse at bottom right, rgba(16, 185, 129, 0.1), transparent 50%),
     linear-gradient(180deg, var(--background), #1e293b);
@@ -125,7 +182,7 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: 
+  background-image:
     linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
   background-size: 50px 50px;
@@ -157,7 +214,9 @@ body {
 }
 
 @keyframes fadeIn {
-  to { opacity: 1; }
+  to {
+    opacity: 1;
+  }
 }
 
 .modal {
@@ -175,8 +234,8 @@ body {
 }
 
 @keyframes slideUp {
-  to { 
-    transform: scale(1) translateY(0); 
+  to {
+    transform: scale(1) translateY(0);
   }
 }
 
@@ -256,6 +315,7 @@ body {
     opacity: 0;
     transform: translateX(100%);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -319,15 +379,15 @@ body {
 }
 
 /* Make nodes look better in dark mode */
-me-main[data-direction="0"] > me-tpc,
-me-main[data-direction="1"] > me-tpc,
-me-main[data-direction="2"] > me-tpc {
+me-main[data-direction="0"]>me-tpc,
+me-main[data-direction="1"]>me-tpc,
+me-main[data-direction="2"]>me-tpc {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark)) !important;
   border-radius: 12px !important;
   box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3) !important;
 }
 
-.me-root > me-tpc {
+.me-root>me-tpc {
   background: linear-gradient(135deg, var(--accent), #059669) !important;
   border-radius: 16px !important;
   box-shadow: 0 8px 32px rgba(16, 185, 129, 0.4) !important;
