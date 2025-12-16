@@ -1,0 +1,22 @@
+diff --git a/node_modules/mind-elixir/dist/MindElixir.js b/node_modules/mind-elixir/dist/MindElixir.js
+index fda8cf9..cfd11b0 100644
+--- a/node_modules/mind-elixir/dist/MindElixir.js
++++ b/node_modules/mind-elixir/dist/MindElixir.js
+@@ -922,7 +922,7 @@ const me = document, Dt = function(e, t) {
+ }, He = function(e, t) {
+   for (const n of t) {
+     const o = n.parentElement.parentElement.contains(e);
+-    if (!(e && e.tagName === "ME-TPC" && e !== n && !o && e.nodeObj.parent)) return !1;
++    if (!(e && e.tagName === "ME-TPC" && e !== n && !o)) return !1;
+   }
+   return !0;
+ }, Pt = function(e) {
+@@ -1680,7 +1680,7 @@ function ln(e, t) {
+   n !== void 0 && (n[o] = t, t.children = [e]);
+ }
+ function ot(e, t, n) {
+-  if (nt(t), n.parent?.parent || (t.direction = n.direction), e === "in")
++  if (nt(t), !n.parent ? (t.direction = t.direction !== void 0 ? t.direction : 0) : n.parent?.parent || (t.direction = n.direction), e === "in")
+     n.children ? n.children.push(t) : n.children = [t];
+   else {
+     t.direction !== void 0 && (t.direction = n.direction);
