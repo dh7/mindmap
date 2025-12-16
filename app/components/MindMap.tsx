@@ -37,7 +37,16 @@ function dataToMermaid(data: MindElixirData): string {
         if (isRoot) {
             lines.push(`${indent}root((${topic}))`);
         } else {
-            lines.push(`${indent}${topic}`);
+            let line = `${indent}${topic}`;
+            // Add direction class for first level nodes
+            if (depth === 2) { // depth 1 is root call (processNode called with depth 1), inside processNode depth is passed.
+                // Wait, logic check:
+                // processNode(root, 1) -> Root.
+                //   processNode(child, 2) -> Level 1 Node.
+                if (node.direction === 0) line += ':::left';
+                if (node.direction === 1) line += ':::right';
+            }
+            lines.push(line);
         }
 
         if (node.children && node.children.length > 0) {
@@ -104,9 +113,21 @@ function mermaidToData(mermaid: string): MindElixirData {
                     endIdx++;
                 }
 
+                let topic = text;
+                let direction: 0 | 1 | undefined;
+
+                if (topic.endsWith(':::left')) {
+                    direction = 0;
+                    topic = topic.replace(':::left', '');
+                } else if (topic.endsWith(':::right')) {
+                    direction = 1;
+                    topic = topic.replace(':::right', '');
+                }
+
                 const node: NodeData = {
                     id: `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                    topic: text,
+                    topic: topic,
+                    direction: direction,
                     children: buildTree(i + 1, indent)
                 };
 
@@ -123,9 +144,12 @@ function mermaidToData(mermaid: string): MindElixirData {
     const rootIndent = getIndent(lines[startIdx] || '');
     const rootChildren = buildTree(startIdx + 1, rootIndent);
 
-    // Assign directions to main branches (alternate left/right)
-    rootChildren.forEach((child, index) => {
-        child.direction = (index % 2) as 0 | 1;
+    // Assign directions to main branches
+    rootChildren.forEach((child) => {
+        // If direction was parsed, keep it. Otherwise default to 1 (Right) to preserve order
+        if (child.direction === undefined) {
+            child.direction = 1;
+        }
     });
 
     return {
