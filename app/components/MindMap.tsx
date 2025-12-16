@@ -13,6 +13,127 @@ export interface MindMapRef {
     toCenter: () => void;
     exportPng: () => Promise<string>;
     exportSvg: () => Promise<string>;
+    getMermaid: () => string;
+    setMermaid: (mermaid: string) => void;
+}
+
+// Node type for internal processing
+interface NodeData {
+    id: string;
+    topic: string;
+    direction?: 0 | 1;
+    children?: NodeData[];
+}
+
+// Convert MindElixir data to Mermaid format
+function dataToMermaid(data: MindElixirData): string {
+    const lines: string[] = ['mindmap'];
+
+    function processNode(node: NodeData, depth: number, isRoot: boolean = false): void {
+        const indent = '  '.repeat(depth);
+        const topic = node.topic.replace(/[()\[\]{}]/g, '');
+
+        if (isRoot) {
+            lines.push(`${indent}root((${topic}))`);
+        } else {
+            lines.push(`${indent}${topic}`);
+        }
+
+        if (node.children && node.children.length > 0) {
+            for (const child of node.children) {
+                processNode(child, depth + 1);
+            }
+        }
+    }
+
+    if (data.nodeData) {
+        processNode(data.nodeData as NodeData, 1, true);
+    }
+
+    return lines.join('\n');
+}
+
+// Convert Mermaid format to MindElixir data
+function mermaidToData(mermaid: string): MindElixirData {
+    const lines = mermaid.split('\n').filter(line => line.trim());
+
+    // Skip 'mindmap' line if present
+    let startIdx = 0;
+    if (lines[0]?.trim().toLowerCase() === 'mindmap') {
+        startIdx = 1;
+    }
+
+    // Parse the root line
+    const rootLine = lines[startIdx];
+    const rootMatch = rootLine?.match(/root\(\((.+?)\)\)/) || rootLine?.match(/root\[(.+?)\]/) || rootLine?.match(/root\((.+?)\)/);
+    const rootTopic = rootMatch ? rootMatch[1] : (rootLine?.trim() || 'Root');
+
+    // Calculate indentation for each line
+    function getIndent(line: string): number {
+        const match = line.match(/^(\s*)/);
+        return match ? match[1].length : 0;
+    }
+
+    // Build tree from remaining lines
+    function buildTree(startLine: number, parentIndent: number): NodeData[] {
+        const children: NodeData[] = [];
+        let i = startLine;
+
+        while (i < lines.length) {
+            const line = lines[i];
+            const indent = getIndent(line);
+            const text = line.trim();
+
+            // Skip root line
+            if (text.includes('root((') || text.includes('root[') || text.includes('root(')) {
+                i++;
+                continue;
+            }
+
+            // If indentation is less or equal to parent, we're done with this level
+            if (indent <= parentIndent && i > startLine) {
+                break;
+            }
+
+            // If this is a direct child (one level deeper)
+            if (indent > parentIndent) {
+                // Find the end of this node's children
+                let endIdx = i + 1;
+                while (endIdx < lines.length && getIndent(lines[endIdx]) > indent) {
+                    endIdx++;
+                }
+
+                const node: NodeData = {
+                    id: `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    topic: text,
+                    children: buildTree(i + 1, indent)
+                };
+
+                children.push(node);
+                i = endIdx;
+            } else {
+                i++;
+            }
+        }
+
+        return children;
+    }
+
+    const rootIndent = getIndent(lines[startIdx] || '');
+    const rootChildren = buildTree(startIdx + 1, rootIndent);
+
+    // Assign directions to main branches (alternate left/right)
+    rootChildren.forEach((child, index) => {
+        child.direction = (index % 2) as 0 | 1;
+    });
+
+    return {
+        nodeData: {
+            id: 'root',
+            topic: rootTopic,
+            children: rootChildren
+        }
+    };
 }
 
 interface MindMapProps {
@@ -104,6 +225,16 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, onDataChang
                 return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
             }
             throw new Error('Mind map not ready');
+        },
+        getMermaid: () => {
+            const data = mindRef.current?.getData() || initialData || defaultData;
+            return dataToMermaid(data);
+        },
+        setMermaid: (mermaid: string) => {
+            const data = mermaidToData(mermaid);
+            if (mindRef.current) {
+                mindRef.current.refresh(data);
+            }
         },
     }));
 
