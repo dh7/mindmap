@@ -1,0 +1,135 @@
+mindmap
+  root((AI OS))
+    Vault
+      The vault contains Knowledge and structure them by Global context
+      Local & Online
+      Encrypted
+      End to end encryption for sharing
+      Data examples
+        address
+        passport numbers
+        passwords
+        birthdays of friends
+    Apps can ask access, but user needs to approve everytime for sensitive data: "Can xxx access your passport number"?
+    Apps
+      An app is a tool that does a specific task
+      Can access context, global or local with correct rights.
+      Process context
+        Prepare the input before coding an agent
+          get infos from the local and global context
+          Assemble that in a prompts
+        Use a model with proper parameters
+        Update the context
+      Apps are actionable knowlege
+      monetizable
+      Can access external world
+      have a UI
+      Easy to edit and fork for UGC
+      connecteors?
+    Agents
+      An agent is an entity that acts on behalf of another entity or itself to accomplish a task or goal.
+      Background tasks that are active
+      They are tight to a specific context
+      Need to be trusted
+      Have activators and can do workflows
+      they can access
+        TRUST: all access need to be explicitly approved by the user
+        Trigger
+          from ingestor or activator
+            the trigger fill all the inputs needed by an agent.
+        Human interface
+          An agent can yied to ask a human some feedback or action before executing something
+          This is centralized in an interface that collects all the feedbacks from all agent. Sort them by P0 to P3.
+        Apps
+          one app per agent
+        Context
+          from the vault
+    Agents manager
+      Create agents
+      Give agent a set of context
+      Give agent permissions
+      Garenty that agents runs in a sandbox
+      Start and stop agents
+      Ask humans for feedback and auth.
+      Collect asks from agents to humans
+      Present actions
+    Knowledges
+      What is a knowledge?
+        Knowledge is a collection of source of thruths.
+        knowledge can be examples of good contents
+      Can be a list of facts
+      Can be documents
+      can be text, audio or videos
+      Can be good practice
+      Can be super granular like passport number
+      Trust
+        Trust is insured by the author of a knowledges
+        knowledges can be autidated
+      Decentralized
+        Fork, merge, PR, etc
+      Monetisable
+        Need a knowledge store
+        Consumed directly by chatbots, but also by apps & agents
+      The knowlege creator
+        Deals with decentralized knowledge
+        When data, facts, opignon, idea are ingested by the ingestor, we need tools to structure them to create actionable knowledge out of them
+        The knowlege creator should probably be part of the same product than the ingestor
+    Global Contexts
+      What are Global Contexts
+      Global context is governance over knowlege data
+      Globals context are collection of Knowledges
+      Global context is context that need to be shared accross multiple Apps to acheive multiple goals.
+      For instance many Apps will need to understand the project you are working on, to do their tasks.
+      Examples of global contexts
+        Individual context
+        Personal project context
+        Familly context
+        Enterprise context
+        Enterprise Project context
+      Global context are auditable source of Thruths
+    The AIs Interface
+      The ingestor
+        What is the ingestor?
+          The ingestor help the ingestion of data into the context
+          The ingestor can create Knowledge and structure them
+        A local and online interface that ease ingestion of data into Global or local contexts
+          Local is necessary to capture seemlessly context and knowledge
+        Can structure unstructured data to create source of truth
+        manage governance thru the vault
+      The activator
+        The agent that execute things on your behalf
+        Emulate your keyboard, your mouse
+        read screen
+        Detect situation where to activate agents behavior
+        Can access APIs
+        Can send emails and access slack and notion
+    PITCH
+      A plateform to create, share & monetise AI Agents
+    TAM
+      upwork x zapier
+    The Transformer
+      It's a proxy for LLMs and other model call
+    Human work in the AI area
+      Colect, Create & Manage knowlege
+      People working in this area will monetise well if they are trusted. Peoples will pay for trusted knowledge
+    Create AI Apps
+      Apps will be monetized thru an AI app store
+    Create Agents
+      Monetized thru the agent store
+    Use Apps and Agents
+      Spend money on the plateform
+      Make money somewhere else
+    KEY CONCEPTS
+      Atoms
+        Knowledge
+        Contexts
+          set of knowledges
+        AI Apps
+        Agents
+        Human validation
+      Plateform
+        Local tool
+          Ingestion
+          Activation
+        Online tool
+          Apps sharing and monetisation

@@ -456,6 +456,44 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
         }
     };
 
+    const handleCollapse = () => {
+        if (mindRef.current) {
+            const mind = mindRef.current;
+            const data = mind.getData();
+
+            const processNode = (node: any, depth: number) => {
+                node.expanded = depth === 0;
+                if (node.children && node.children.length > 0) {
+                    node.children.forEach((child: any) => processNode(child, depth + 1));
+                }
+            };
+
+            if (data.nodeData) {
+                processNode(data.nodeData, 0);
+                mind.refresh(data);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (mind as any).scale(1);
+                mind.toCenter();
+            }
+        }
+    };
+
+    const buttonStyle: React.CSSProperties = {
+        width: '40px',
+        height: '40px',
+        borderRadius: '10px',
+        border: '1px solid rgba(255, 255, 255, 0.15)',
+        background: 'rgba(30, 30, 40, 0.8)',
+        backdropFilter: 'blur(10px)',
+        color: 'rgba(255, 255, 255, 0.9)',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transition: 'all 0.2s ease',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+    };
+
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
             <div
@@ -469,51 +507,75 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
                 }}
             />
             {isReady && (
-                <button
-                    onClick={handleCenter}
-                    title="Center view"
+                <div
                     style={{
                         position: 'absolute',
                         top: '12px',
                         left: '12px',
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '10px',
-                        border: '1px solid rgba(255, 255, 255, 0.15)',
-                        background: 'rgba(30, 30, 40, 0.8)',
-                        backdropFilter: 'blur(10px)',
-                        color: 'rgba(255, 255, 255, 0.9)',
-                        cursor: 'pointer',
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'all 0.2s ease',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-                    }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(50, 50, 60, 0.9)';
-                        e.currentTarget.style.transform = 'scale(1.05)';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'rgba(30, 30, 40, 0.8)';
-                        e.currentTarget.style.transform = 'scale(1)';
+                        flexDirection: 'column',
+                        gap: '8px',
                     }}
                 >
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                    <button
+                        onClick={handleCenter}
+                        title="Center view"
+                        style={buttonStyle}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(50, 50, 60, 0.9)';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(30, 30, 40, 0.8)';
+                            e.currentTarget.style.transform = 'scale(1)';
+                        }}
                     >
-                        <circle cx="12" cy="12" r="3" />
-                        <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
-                    </svg>
-                </button>
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <circle cx="12" cy="12" r="3" />
+                            <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+                        </svg>
+                    </button>
+                    <button
+                        onClick={handleCollapse}
+                        title="Collapse all"
+                        style={buttonStyle}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(50, 50, 60, 0.9)';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(30, 30, 40, 0.8)';
+                            e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <polyline points="4 14 10 14 10 20" />
+                            <polyline points="20 10 14 10 14 4" />
+                            <line x1="14" y1="10" x2="21" y2="3" />
+                            <line x1="3" y1="21" x2="10" y2="14" />
+                        </svg>
+                    </button>
+                </div>
             )}
         </div>
     );

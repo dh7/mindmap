@@ -21,11 +21,11 @@ const MindMap = dynamic(() => import('./components/MindMap'), {
 
 // Icons
 const Icons = {
-  Save: () => (
+  Upload: () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-      <polyline points="17,21 17,13 7,13 7,21" />
-      <polyline points="7,3 7,8 15,8" />
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17,8 12,3 7,8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
     </svg>
   ),
   Download: () => (
@@ -35,16 +35,9 @@ const Icons = {
       <line x1="12" y1="15" x2="12" y2="3" />
     </svg>
   ),
-  Image: () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-      <circle cx="8.5" cy="8.5" r="1.5" />
-      <polyline points="21,15 16,10 5,21" />
-    </svg>
-  ),
-  Open: () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+  ChevronDown: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6,9 12,15 18,9" />
     </svg>
   ),
   Brain: () => (
@@ -53,24 +46,12 @@ const Icons = {
       <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-1.02" />
     </svg>
   ),
-  Mermaid: () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3v18" />
-      <path d="M5 8l7-5 7 5" />
-      <path d="M5 16l7 5 7-5" />
-    </svg>
-  ),
   Collapse: () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="4 14 10 14 10 20" />
       <polyline points="20 10 14 10 14 4" />
       <line x1="14" y1="10" x2="21" y2="3" />
       <line x1="3" y1="21" x2="10" y2="14" />
-    </svg>
-  ),
-  Cloud: () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
     </svg>
   ),
 };
@@ -92,8 +73,9 @@ function Toast({ message, type, onClose }: { message: string; type: 'success' | 
 export default function Home() {
   const mindMapRef = useRef<MindMapRef>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const mermaidInputRef = useRef<HTMLInputElement>(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   // Cloud sync state
   const [cloudConnected, setCloudConnected] = useState(false);
@@ -107,6 +89,17 @@ export default function Home() {
   useEffect(() => {
     cloudConnectedRef.current = cloudConnected;
   }, [cloudConnected]);
+
+  // Close export menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type });
@@ -129,97 +122,8 @@ export default function Home() {
     }
   }, []);
 
-  // Open JSON file
-  const handleOpenFile = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
-  const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const content = e.target?.result as string;
-          const data = JSON.parse(content) as MindElixirData;
-          if (mindMapRef.current && data.nodeData) {
-            mindMapRef.current.refresh(data);
-            // Collapse all after a short delay to let the render complete
-            setTimeout(() => mindMapRef.current?.collapseAll(), 300);
-            showToast('Mind map loaded!', 'success');
-          } else {
-            showToast('Invalid file format', 'error');
-          }
-        } catch {
-          showToast('Failed to parse file', 'error');
-        }
-      };
-      reader.readAsText(file);
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  }, [showToast]);
-
-  // Save JSON to disk
-  const handleSaveJSON = useCallback(() => {
-    if (mindMapRef.current) {
-      const data = mindMapRef.current.getDataString();
-      const blob = new Blob([data], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `mindmap-${Date.now()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showToast('JSON saved!', 'success');
-    }
-  }, [showToast]);
-
-  // Save PNG to disk
-  const handleSavePng = useCallback(async () => {
-    if (mindMapRef.current) {
-      try {
-        showToast('Generating PNG...', 'success');
-        const base64 = await mindMapRef.current.exportPng();
-        const a = document.createElement('a');
-        a.href = base64;
-        a.download = `mindmap-${Date.now()}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        showToast('PNG saved!', 'success');
-      } catch (error) {
-        console.error('Export error:', error);
-        showToast('Failed to export PNG', 'error');
-      }
-    }
-  }, [showToast]);
-
-  // Save SVG to disk
-  const handleSaveSvg = useCallback(async () => {
-    if (mindMapRef.current) {
-      try {
-        showToast('Generating SVG...', 'success');
-        const dataUrl = await mindMapRef.current.exportSvg();
-        const a = document.createElement('a');
-        a.href = dataUrl;
-        a.download = `mindmap-${Date.now()}.svg`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        showToast('SVG saved!', 'success');
-      } catch (error) {
-        console.error('Export error:', error);
-        showToast('Failed to export SVG', 'error');
-      }
-    }
-  }, [showToast]);
-
-  // Open Mermaid file
-  const handleOpenMermaid = useCallback(() => {
+  // Open Mermaid file (Import)
+  const handleImport = useCallback(() => {
     mermaidInputRef.current?.click();
   }, []);
 
@@ -234,12 +138,12 @@ export default function Home() {
             mindMapRef.current.setMermaid(content);
             // Collapse all after a short delay to let the render complete
             setTimeout(() => mindMapRef.current?.collapseAll(), 300);
-            showToast('Mermaid loaded!', 'success');
+            showToast('Mind map imported!', 'success');
           } else {
-            showToast('Invalid Mermaid file', 'error');
+            showToast('Invalid file', 'error');
           }
         } catch {
-          showToast('Failed to parse Mermaid', 'error');
+          showToast('Failed to parse file', 'error');
         }
       };
       reader.readAsText(file);
@@ -249,8 +153,8 @@ export default function Home() {
     }
   }, [showToast]);
 
-  // Save Mermaid to disk
-  const handleSaveMermaid = useCallback(() => {
+  // Export functions
+  const handleExportMermaid = useCallback(() => {
     if (mindMapRef.current) {
       const mermaid = mindMapRef.current.getMermaid();
       const blob = new Blob([mermaid], { type: 'text/plain' });
@@ -262,14 +166,48 @@ export default function Home() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      showToast('Mermaid saved!', 'success');
+      showToast('Mermaid exported!', 'success');
+      setExportMenuOpen(false);
     }
   }, [showToast]);
 
-  const handleCollapse = useCallback(() => {
+  const handleExportSvg = useCallback(async () => {
     if (mindMapRef.current) {
-      mindMapRef.current.collapseAll();
-      showToast('Nodes collapsed', 'success');
+      try {
+        showToast('Generating SVG...', 'success');
+        const dataUrl = await mindMapRef.current.exportSvg();
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `mindmap-${Date.now()}.svg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast('SVG exported!', 'success');
+        setExportMenuOpen(false);
+      } catch (error) {
+        console.error('Export error:', error);
+        showToast('Failed to export SVG', 'error');
+      }
+    }
+  }, [showToast]);
+
+  const handleExportPng = useCallback(async () => {
+    if (mindMapRef.current) {
+      try {
+        showToast('Generating PNG...', 'success');
+        const base64 = await mindMapRef.current.exportPng();
+        const a = document.createElement('a');
+        a.href = base64;
+        a.download = `mindmap-${Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast('PNG exported!', 'success');
+        setExportMenuOpen(false);
+      } catch (error) {
+        console.error('Export error:', error);
+        showToast('Failed to export PNG', 'error');
+      }
     }
   }, [showToast]);
 
@@ -337,50 +275,47 @@ export default function Home() {
         <div className="header-brand">
           <Icons.Brain />
           <span>MindMap</span>
-        </div>
-        <div className="header-actions">
-          <button className="btn-header" onClick={handleOpenFile} title="Open JSON file">
-            <Icons.Open />
-            <span>Open</span>
-          </button>
-          <button className="btn-header" onClick={handleSaveJSON} title="Save as JSON">
-            <Icons.Save />
-            <span>Save JSON</span>
-          </button>
-          <button className="btn-header" onClick={handleOpenMermaid} title="Load Mermaid file">
-            <Icons.Mermaid />
-            <span>Load Mermaid</span>
-          </button>
-          <button className="btn-header" onClick={handleSaveMermaid} title="Save as Mermaid">
-            <Icons.Mermaid />
-            <span>Save Mermaid</span>
-          </button>
           {cloudConnected && (
-            <span className="cloud-status" title="Connected to MindCache Cloud">
-              <Icons.Cloud />
-              <span>Synced</span>
+            <span className="sync-indicator" title="Synced to cloud">
+              <span className="sync-dot"></span>
             </span>
           )}
-          <button className="btn-header" onClick={handleCollapse} title="Collapse all except root and first level">
-            <Icons.Collapse />
-            <span>Collapse</span>
-          </button>
-          <button className="btn-header" onClick={handleSaveSvg} title="Save as SVG">
-            <Icons.Image />
-            <span>Save SVG</span>
-          </button>
-          <button className="btn-header btn-accent" onClick={handleSavePng} title="Save as PNG">
-            <Icons.Image />
-            <span>Save PNG</span>
-          </button>
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json"
-          onChange={handleFileChange}
-          style={{ display: 'none' }}
-        />
+        <div className="header-actions">
+          <button className="btn-header" onClick={handleImport} title="Import from Mermaid file">
+            <Icons.Upload />
+            <span>Import</span>
+          </button>
+
+          {/* Export dropdown */}
+          <div className="dropdown" ref={exportMenuRef}>
+            <button
+              className="btn-header btn-accent"
+              onClick={() => setExportMenuOpen(!exportMenuOpen)}
+              title="Export mind map"
+            >
+              <Icons.Download />
+              <span>Export</span>
+              <Icons.ChevronDown />
+            </button>
+            {exportMenuOpen && (
+              <div className="dropdown-menu">
+                <button onClick={handleExportMermaid} className="dropdown-item">
+                  <span className="dropdown-icon">📝</span>
+                  Mermaid (.mmd)
+                </button>
+                <button onClick={handleExportSvg} className="dropdown-item">
+                  <span className="dropdown-icon">🎨</span>
+                  SVG Image
+                </button>
+                <button onClick={handleExportPng} className="dropdown-item">
+                  <span className="dropdown-icon">🖼️</span>
+                  PNG Image
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
         <input
           ref={mermaidInputRef}
           type="file"
@@ -417,3 +352,4 @@ export default function Home() {
     </main>
   );
 }
+
