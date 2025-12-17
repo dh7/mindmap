@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import { MindCache } from 'mindcache';
 import type { MindMapRef } from './components/MindMap';
 import type { MindElixirData } from 'mind-elixir';
 
@@ -67,6 +68,11 @@ const Icons = {
       <line x1="3" y1="21" x2="10" y2="14" />
     </svg>
   ),
+  Cloud: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+    </svg>
+  ),
 };
 
 // Toast notification component
@@ -88,33 +94,38 @@ export default function Home() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mermaidInputRef = useRef<HTMLInputElement>(null);
-  const [initialData, setInitialData] = useState<MindElixirData | undefined>(undefined);
+
+  // Cloud sync state
+  const [cloudConnected, setCloudConnected] = useState(false);
+  const [cloudLoading, setCloudLoading] = useState(true);
+  const [initialMermaid, setInitialMermaid] = useState<string | null>(null);
+  const mindCacheRef = useRef<MindCache | null>(null);
+  const syncingFromCloud = useRef(false);
+  const cloudConnectedRef = useRef(false);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    cloudConnectedRef.current = cloudConnected;
+  }, [cloudConnected]);
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type });
   }, []);
 
-  // Load from localStorage on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('mindmap-autosave');
-      if (saved) {
-        const data = JSON.parse(saved) as MindElixirData;
-        if (data.nodeData) {
-          setInitialData(data);
-        }
-      }
-    } catch {
-      // Ignore parse errors
-    }
-  }, []);
-
-  // Auto-save to localStorage
-  const handleDataChange = useCallback((data: MindElixirData) => {
-    try {
-      localStorage.setItem('mindmap-autosave', JSON.stringify(data));
-    } catch {
-      // Ignore storage errors
+  // Sync to cloud on any data change
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleDataChange = useCallback((_data: MindElixirData) => {
+    console.log('☁️ handleDataChange called, connected:', cloudConnectedRef.current, 'syncing:', syncingFromCloud.current);
+    if (mindCacheRef.current && cloudConnectedRef.current && mindMapRef.current && !syncingFromCloud.current) {
+      const mermaid = mindMapRef.current.getMermaid();
+      // Block incoming updates while we sync
+      syncingFromCloud.current = true;
+      mindCacheRef.current.set_value('mindmap-mermaid', mermaid);
+      console.log('☁️ Synced to cloud');
+      // Keep blocking for 2 seconds to avoid echo
+      setTimeout(() => {
+        syncingFromCloud.current = false;
+      }, 2000);
     }
   }, []);
 
@@ -262,6 +273,63 @@ export default function Home() {
     }
   }, [showToast]);
 
+  // Cloud auto-connect and sync
+  useEffect(() => {
+    const instanceId = process.env.NEXT_PUBLIC_INSTANCE_MINDMAP;
+    if (!instanceId) {
+      console.log('No NEXT_PUBLIC_INSTANCE_MINDMAP configured, cloud sync disabled');
+      setCloudLoading(false);
+      return;
+    }
+
+    const mc = new MindCache({
+      cloud: {
+        instanceId,
+        baseUrl: process.env.NEXT_PUBLIC_MINDCACHE_API_URL || 'https://api.mindcache.dev',
+        tokenEndpoint: '/api/ws-token'
+      }
+    });
+
+    mindCacheRef.current = mc;
+
+    // Connect and subscribe
+    mc.waitForSync().then(() => {
+      setCloudConnected(true);
+      console.log('☁️ Connected to MindCache cloud');
+
+      // Load initial data from cloud and store in state
+      const cloudMermaid = mc.get_value('mindmap-mermaid') as string;
+      if (cloudMermaid) {
+        console.log('☁️ Loading initial mindmap from cloud');
+        setInitialMermaid(cloudMermaid);
+      }
+
+      // Now stop loading - MindMap will render with initialMermaid
+      setCloudLoading(false);
+
+      // Subscribe to cloud changes for future updates
+      mc.subscribe('mindmap-mermaid', (value: unknown) => {
+        const mermaidContent = value as string;
+        if (mermaidContent && mindMapRef.current && !syncingFromCloud.current) {
+          console.log('☁️ Received mermaid update from cloud');
+          syncingFromCloud.current = true;
+          mindMapRef.current.setMermaid(mermaidContent);
+          setTimeout(() => {
+            syncingFromCloud.current = false;
+          }, 500);
+        }
+      });
+    }).catch((error) => {
+      console.error('☁️ Cloud connection failed:', error);
+      setCloudLoading(false);
+    });
+
+    return () => {
+      mc.disconnect();
+      setCloudConnected(false);
+    };
+  }, []);
+
   return (
     <main className="mindmap-container">
       {/* Header */}
@@ -287,6 +355,12 @@ export default function Home() {
             <Icons.Mermaid />
             <span>Save Mermaid</span>
           </button>
+          {cloudConnected && (
+            <span className="cloud-status" title="Connected to MindCache Cloud">
+              <Icons.Cloud />
+              <span>Synced</span>
+            </span>
+          )}
           <button className="btn-header" onClick={handleCollapse} title="Collapse all except root and first level">
             <Icons.Collapse />
             <span>Collapse</span>
@@ -318,11 +392,18 @@ export default function Home() {
 
       {/* Mind Map */}
       <div className="mindmap-content">
-        <MindMap
-          ref={mindMapRef}
-          initialData={initialData}
-          onDataChange={handleDataChange}
-        />
+        {cloudLoading ? (
+          <div className="loading-container">
+            <div className="loading-spinner"></div>
+            <p>Loading from cloud...</p>
+          </div>
+        ) : (
+          <MindMap
+            ref={mindMapRef}
+            initialMermaid={initialMermaid}
+            onDataChange={handleDataChange}
+          />
+        )}
       </div>
 
       {/* Toast notifications */}

@@ -23,6 +23,7 @@ interface NodeData {
     id: string;
     topic: string;
     direction?: 0 | 1;
+    expanded?: boolean;
     children?: NodeData[];
 }
 
@@ -128,6 +129,7 @@ function mermaidToData(mermaid: string): MindElixirData {
                     id: `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     topic: topic,
                     direction: direction,
+                    expanded: true,
                     children: buildTree(i + 1, indent)
                 };
 
@@ -156,6 +158,7 @@ function mermaidToData(mermaid: string): MindElixirData {
         nodeData: {
             id: 'root',
             topic: rootTopic,
+            expanded: true,
             children: rootChildren
         }
     };
@@ -163,6 +166,7 @@ function mermaidToData(mermaid: string): MindElixirData {
 
 interface MindMapProps {
     initialData?: MindElixirData;
+    initialMermaid?: string | null;
     onDataChange?: (data: MindElixirData) => void;
 }
 
@@ -201,7 +205,7 @@ const defaultData: MindElixirData = {
     },
 };
 
-const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, onDataChange }, ref) => {
+const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMermaid, onDataChange }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const mindRef = useRef<MindElixirInstance | null>(null);
     const [isReady, setIsReady] = useState(false);
@@ -258,10 +262,46 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, onDataChang
             return dataToMermaid(data);
         },
         setMermaid: (mermaid: string) => {
-            const data = mermaidToData(mermaid);
-            if (mindRef.current) {
-                mindRef.current.refresh(data);
+            if (!mindRef.current) return;
+
+            // Save current expanded states
+            const currentData = mindRef.current.getData();
+            const expandedStates: Record<string, boolean> = {};
+            const saveExpandedStates = (node: any) => {
+                if (node.id && node.expanded !== undefined) {
+                    expandedStates[node.id] = node.expanded;
+                }
+                // Also save by topic as fallback (IDs might differ)
+                if (node.topic) {
+                    expandedStates[`topic:${node.topic}`] = node.expanded ?? true;
+                }
+                if (node.children) {
+                    node.children.forEach(saveExpandedStates);
+                }
+            };
+            if (currentData.nodeData) {
+                saveExpandedStates(currentData.nodeData);
             }
+
+            // Convert new mermaid to data
+            const newData = mermaidToData(mermaid);
+
+            // Restore expanded states to new data
+            const restoreExpandedStates = (node: any) => {
+                if (node.id && expandedStates[node.id] !== undefined) {
+                    node.expanded = expandedStates[node.id];
+                } else if (node.topic && expandedStates[`topic:${node.topic}`] !== undefined) {
+                    node.expanded = expandedStates[`topic:${node.topic}`];
+                }
+                if (node.children) {
+                    node.children.forEach(restoreExpandedStates);
+                }
+            };
+            if (newData.nodeData) {
+                restoreExpandedStates(newData.nodeData);
+            }
+
+            mindRef.current.refresh(newData);
         },
         collapseAll: () => {
             if (mindRef.current) {
@@ -299,13 +339,16 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, onDataChang
     }));
 
     const handleOperation = useCallback(() => {
+        console.log('MindMap: operation event fired');
         if (mindRef.current && onDataChange) {
             onDataChange(mindRef.current.getData());
         }
     }, [onDataChange]);
 
     useEffect(() => {
+        console.log('MindMap useEffect running, container:', !!containerRef.current, 'mindRef:', !!mindRef.current);
         if (!containerRef.current || mindRef.current) return;
+        console.log('MindMap: Creating MindElixir instance');
 
         // Mind Elixir types are incomplete - using type assertion for runtime-valid options
         const options = {
@@ -347,12 +390,54 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, onDataChang
         const mind = new MindElixir(options);
         mindRef.current = mind;
 
-        // Initialize with data
-        const data = initialData || defaultData;
+        // Initialize with data - prefer initialMermaid (from cloud) over initialData
+        let data: MindElixirData;
+        if (initialMermaid) {
+            data = mermaidToData(initialMermaid);
+        } else if (initialData) {
+            data = initialData;
+        } else {
+            data = defaultData;
+        }
         mind.init(data);
+
+        // If initialized from mermaid (cloud), collapse and center
+        if (initialMermaid) {
+            setTimeout(() => {
+                // Collapse all nodes except root
+                const currentData = mind.getData();
+                const processNode = (node: any, depth: number) => {
+                    if (!node) return;
+                    node.expanded = depth === 0;
+                    if (node.children) {
+                        node.children.forEach((child: any) => processNode(child, depth + 1));
+                    }
+                };
+                if (currentData.nodeData) {
+                    processNode(currentData.nodeData, 0);
+                    mind.refresh(currentData);
+                }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (mind as any).scale(1);
+                mind.toCenter();
+            }, 100);
+        }
 
         // Listen for operations
         mind.bus.addListener('operation', handleOperation);
+
+        // Debug: log all events
+        const originalFire = mind.bus.fire.bind(mind.bus);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mind.bus as any).fire = (event: string, ...args: unknown[]) => {
+            console.log('MindElixir event:', event);
+            if (event === 'operation') {
+                console.log('Operation event - calling handleOperation');
+                handleOperation();
+            }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return (originalFire as any)(event, ...args);
+        };
 
         setIsReady(true);
 
