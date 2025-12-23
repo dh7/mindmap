@@ -90,6 +90,49 @@ export default function Home() {
     cloudConnectedRef.current = cloudConnected;
   }, [cloudConnected]);
 
+  // Keyboard shortcuts for undo/redo using MindCache
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const mc = mindCacheRef.current;
+      if (!mc || !cloudConnectedRef.current) return;
+
+      // Cmd+Z or Ctrl+Z for undo
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (mc.canUndoAll()) {
+          mc.undoAll();
+          // Get the updated value and apply to mindmap
+          const mermaid = mc.get_value('mindmap-mermaid') as string;
+          if (mermaid && mindMapRef.current) {
+            syncingFromCloud.current = true;
+            mindMapRef.current.setMermaid(mermaid);
+            setTimeout(() => { syncingFromCloud.current = false; }, 100);
+          }
+          console.log('☁️ Undo via MindCache');
+        }
+      }
+
+      // Cmd+Shift+Z or Ctrl+Shift+Z for redo (also Ctrl+Y on Windows)
+      if ((e.metaKey || e.ctrlKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
+        e.preventDefault();
+        if (mc.canRedoAll()) {
+          mc.redoAll();
+          // Get the updated value and apply to mindmap
+          const mermaid = mc.get_value('mindmap-mermaid') as string;
+          if (mermaid && mindMapRef.current) {
+            syncingFromCloud.current = true;
+            mindMapRef.current.setMermaid(mermaid);
+            setTimeout(() => { syncingFromCloud.current = false; }, 100);
+          }
+          console.log('☁️ Redo via MindCache');
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Close export menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
