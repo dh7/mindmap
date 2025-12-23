@@ -286,6 +286,14 @@ export default function Home() {
       setCloudConnected(true);
       console.log('☁️ Connected to MindCache cloud');
 
+      // Ensure the document exists (creates if not present)
+      // This is required for document-type keys in MindCache
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (!(mc as any).get_document('mindmap-mermaid')) {
+        console.log('☁️ Initializing document-type key');
+        mc.set_value('mindmap-mermaid', '', { type: 'document' });
+      }
+
       // Load initial data from cloud and store in state
       const cloudMermaid = mc.get_value('mindmap-mermaid') as string;
       if (cloudMermaid) {

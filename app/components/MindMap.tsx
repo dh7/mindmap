@@ -52,26 +52,27 @@ function normalizeMindElixirData(data: MindElixirData): MindElixirData {
 }
 
 // Convert MindElixir data to Mermaid format
+// Uses simple quoted text format with [R]/[L] prefixes for direction (best practice)
 function dataToMermaid(data: MindElixirData): string {
     const lines: string[] = ['mindmap'];
 
     function processNode(node: NodeData, depth: number, isRoot: boolean = false): void {
         const indent = '  '.repeat(depth);
-        const topic = node.topic.replace(/[()\[\]{}]/g, '');
+        // Escape double quotes inside the topic using #quot;
+        const escapedTopic = node.topic.replace(/"/g, '#quot;');
 
         if (isRoot) {
-            lines.push(`${indent}root((${topic}))`);
+            // Root uses (("..."))
+            lines.push(`${indent}root(("${escapedTopic}"))`);
         } else {
-            let line = `${indent}${topic}`;
-            // Add direction class for first level nodes
-            if (depth === 2) { // depth 1 is root call (processNode called with depth 1), inside processNode depth is passed.
-                // Wait, logic check:
-                // processNode(root, 1) -> Root.
-                //   processNode(child, 2) -> Level 1 Node.
-                if (node.direction === 0) line += ':::left';
-                if (node.direction === 1) line += ':::right';
+            // For first-level children (depth === 2), add direction prefix [R] or [L]
+            let prefix = '';
+            if (depth === 2) {
+                if (node.direction === 1) prefix = '[R] ';
+                else if (node.direction === 0) prefix = '[L] ';
             }
-            lines.push(line);
+            // Simple quoted text format - most compatible
+            lines.push(`${indent}"${prefix}${escapedTopic}"`);
         }
 
         if (node.children && node.children.length > 0) {
@@ -89,6 +90,7 @@ function dataToMermaid(data: MindElixirData): string {
 }
 
 // Convert Mermaid format to MindElixir data
+// Handles [R]/[L] direction prefixes inside quoted text
 function mermaidToData(mermaid: string): MindElixirData {
     const lines = mermaid.split('\n').filter(line => line.trim());
 
@@ -98,96 +100,132 @@ function mermaidToData(mermaid: string): MindElixirData {
         startIdx = 1;
     }
 
-    // Parse the root line
-    const rootLine = lines[startIdx];
-    const rootMatch = rootLine?.match(/root\(\((.+?)\)\)/) || rootLine?.match(/root\[(.+?)\]/) || rootLine?.match(/root\((.+?)\)/);
-    const rootTopic = rootMatch ? rootMatch[1] : (rootLine?.trim() || 'Root');
+    if (startIdx >= lines.length) return { nodeData: { id: 'root', topic: 'Root', expanded: true, children: [] } };
 
-    // Calculate indentation for each line
+    // Helper to extract content, direction, and unescape
+    function extractContent(text: string): { topic: string, direction?: 0 | 1 } {
+        let trimmed = text.trim();
+
+        // Check for bare quoted string first: "..."
+        if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+            let content = trimmed.substring(1, trimmed.length - 1);
+
+            // Check for [R] or [L] prefix inside the quoted text
+            let direction: 0 | 1 | undefined = undefined;
+            if (content.startsWith('[R] ')) {
+                direction = 1;
+                content = content.substring(4);
+            } else if (content.startsWith('[L] ')) {
+                direction = 0;
+                content = content.substring(4);
+            }
+
+            // Unescape
+            content = content.replace(/#quot;/g, '"')
+                .replace(/&quot;/g, '"')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&amp;/g, '&');
+
+            return { topic: content, direction };
+        }
+
+        // Handle delimited formats: root((...)), [...], etc.
+        const delimiters = [
+            { open: '((', close: '))' },
+            { open: '[[', close: ']]' },
+            { open: '{{', close: '}}' },
+            { open: '[', close: ']' },
+            { open: '(', close: ')' },
+            { open: '{', close: '}' }
+        ];
+
+        let content = trimmed;
+
+        for (const { open, close } of delimiters) {
+            const openIdx = trimmed.indexOf(open);
+            if (openIdx !== -1 && trimmed.endsWith(close)) {
+                content = trimmed.substring(openIdx + open.length, trimmed.length - close.length);
+                break;
+            }
+        }
+
+        // Remove surrounding quotes if present
+        if (content.length >= 2 && content.startsWith('"') && content.endsWith('"')) {
+            content = content.substring(1, content.length - 1);
+        }
+
+        // Check for [R]/[L] prefix
+        let direction: 0 | 1 | undefined = undefined;
+        if (content.startsWith('[R] ')) {
+            direction = 1;
+            content = content.substring(4);
+        } else if (content.startsWith('[L] ')) {
+            direction = 0;
+            content = content.substring(4);
+        }
+
+        // Unescape entities
+        content = content.replace(/#quot;/g, '"')
+            .replace(/&quot;/g, '"')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&');
+
+        return { topic: content, direction };
+    }
+
     function getIndent(line: string): number {
         const match = line.match(/^(\s*)/);
         return match ? match[1].length : 0;
     }
 
-    // Build tree from remaining lines
-    function buildTree(startLine: number, parentIndent: number): NodeData[] {
-        const children: NodeData[] = [];
-        let i = startLine;
-
-        while (i < lines.length) {
-            const line = lines[i];
-            const indent = getIndent(line);
-            const text = line.trim();
-
-            // Skip root line
-            if (text.includes('root((') || text.includes('root[') || text.includes('root(')) {
-                i++;
-                continue;
-            }
-
-            // If indentation is less or equal to parent, we're done with this level
-            if (indent <= parentIndent && i > startLine) {
-                break;
-            }
-
-            // If this is a direct child (one level deeper)
-            if (indent > parentIndent) {
-                // Find the end of this node's children
-                let endIdx = i + 1;
-                while (endIdx < lines.length && getIndent(lines[endIdx]) > indent) {
-                    endIdx++;
-                }
-
-                let topic = text;
-                let direction: 0 | 1 | undefined;
-
-                if (topic.endsWith(':::left')) {
-                    direction = 0;
-                    topic = topic.replace(':::left', '');
-                } else if (topic.endsWith(':::right')) {
-                    direction = 1;
-                    topic = topic.replace(':::right', '');
-                }
-
-                // Always include children array and expanded property - MindElixir requires these
-                // when adding child nodes (it sets nodeObj.data.expanded = true)
-                const childNodes = buildTree(i + 1, indent);
-                const node: NodeData = {
-                    id: `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                    topic: topic,
-                    direction: direction,
-                    expanded: true,
-                    children: childNodes.length > 0 ? childNodes : []
-                };
-
-                children.push(node);
-                i = endIdx;
-            } else {
-                i++;
-            }
-        }
-
-        return children;
-    }
-
-    const rootIndent = getIndent(lines[startIdx] || '');
-    const rootChildren = buildTree(startIdx + 1, rootIndent);
-
-    // Assign directions to main branches
-    rootChildren.forEach((child) => {
-        // If direction was parsed, keep it. Otherwise default to 1 (Right) to preserve order
-        if (child.direction === undefined) {
-            child.direction = 1;
-        }
-    });
-
-    // Normalize all nodes to ensure they have required properties
+    // Stack-based parsing
+    const rootLine = lines[startIdx];
+    const { topic: rootTopic } = extractContent(rootLine);
     const rootNode: NodeData = {
         id: 'root',
         topic: rootTopic,
         expanded: true,
-        children: rootChildren
+        children: []
     };
+
+    const stack: { node: NodeData, indent: number }[] = [];
+    stack.push({ node: rootNode, indent: getIndent(rootLine) });
+
+    // Process rest
+    for (let i = startIdx + 1; i < lines.length; i++) {
+        const line = lines[i];
+        const indent = getIndent(line);
+        const { topic, direction } = extractContent(line);
+
+        const node: NodeData = {
+            id: Math.random().toString(36).substr(2, 9),
+            topic: topic,
+            expanded: true,
+            children: []
+        };
+
+        // Set direction if extracted from [R]/[L] prefix
+        if (direction !== undefined) {
+            node.direction = direction;
+        }
+
+        // Find parent in stack
+        while (stack.length > 0 && stack[stack.length - 1].indent >= indent) {
+            stack.pop();
+        }
+
+        if (stack.length === 0) {
+            stack.push({ node: rootNode, indent: -1 });
+        }
+
+        const parent = stack[stack.length - 1].node;
+        if (!parent.children) parent.children = [];
+        parent.children.push(node);
+
+        stack.push({ node, indent });
+    }
 
     return {
         nodeData: normalizeNodeData(rootNode)
@@ -518,6 +556,26 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
         }
     };
 
+    const handleZoomIn = () => {
+        if (mindRef.current) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const mind = mindRef.current as any;
+            const currentScale = mind.scaleVal || 1;
+            const newScale = Math.min(3, currentScale + 0.2);
+            mind.scale(newScale);
+        }
+    };
+
+    const handleZoomOut = () => {
+        if (mindRef.current) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const mind = mindRef.current as any;
+            const currentScale = mind.scaleVal || 1;
+            const newScale = Math.max(0.2, currentScale - 0.2);
+            mind.scale(newScale);
+        }
+    };
+
     const buttonStyle: React.CSSProperties = {
         width: '40px',
         height: '40px',
@@ -613,6 +671,61 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
                             <polyline points="20 10 14 10 14 4" />
                             <line x1="14" y1="10" x2="21" y2="3" />
                             <line x1="3" y1="21" x2="10" y2="14" />
+                        </svg>
+                    </button>
+                    <button
+                        onClick={handleZoomIn}
+                        title="Zoom in"
+                        style={buttonStyle}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(50, 50, 60, 0.9)';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(30, 30, 40, 0.8)';
+                            e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                    </button>
+                    <button
+                        onClick={handleZoomOut}
+                        title="Zoom out"
+                        style={buttonStyle}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(50, 50, 60, 0.9)';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(30, 30, 40, 0.8)';
+                            e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <line x1="5" y1="12" x2="19" y2="12" />
                         </svg>
                     </button>
                 </div>
