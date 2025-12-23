@@ -27,6 +27,30 @@ interface NodeData {
     children?: NodeData[];
 }
 
+// Ensure all nodes have the required properties for MindElixir
+// MindElixir's addChild/expandNode requires nodeObj.data.expanded to exist
+function normalizeNodeData(node: NodeData): NodeData {
+    const normalized: NodeData = {
+        id: node.id,
+        topic: node.topic,
+        expanded: node.expanded ?? true,
+        children: (node.children || []).map(normalizeNodeData),
+    };
+    if (node.direction !== undefined) {
+        normalized.direction = node.direction;
+    }
+    return normalized;
+}
+
+// Normalize the full MindElixirData structure
+function normalizeMindElixirData(data: MindElixirData): MindElixirData {
+    if (!data.nodeData) return data;
+    return {
+        ...data,
+        nodeData: normalizeNodeData(data.nodeData as NodeData)
+    };
+}
+
 // Convert MindElixir data to Mermaid format
 function dataToMermaid(data: MindElixirData): string {
     const lines: string[] = ['mindmap'];
@@ -125,12 +149,15 @@ function mermaidToData(mermaid: string): MindElixirData {
                     topic = topic.replace(':::right', '');
                 }
 
+                // Always include children array and expanded property - MindElixir requires these
+                // when adding child nodes (it sets nodeObj.data.expanded = true)
+                const childNodes = buildTree(i + 1, indent);
                 const node: NodeData = {
                     id: `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     topic: topic,
                     direction: direction,
                     expanded: true,
-                    children: buildTree(i + 1, indent)
+                    children: childNodes.length > 0 ? childNodes : []
                 };
 
                 children.push(node);
@@ -154,13 +181,16 @@ function mermaidToData(mermaid: string): MindElixirData {
         }
     });
 
+    // Normalize all nodes to ensure they have required properties
+    const rootNode: NodeData = {
+        id: 'root',
+        topic: rootTopic,
+        expanded: true,
+        children: rootChildren
+    };
+
     return {
-        nodeData: {
-            id: 'root',
-            topic: rootTopic,
-            expanded: true,
-            children: rootChildren
-        }
+        nodeData: normalizeNodeData(rootNode)
     };
 }
 
@@ -174,31 +204,35 @@ const defaultData: MindElixirData = {
     nodeData: {
         id: 'root',
         topic: 'My Mind Map',
+        expanded: true,
         children: [
             {
                 id: 'branch1',
                 topic: 'Main Branch 1',
                 direction: 0,
+                expanded: true,
                 children: [
-                    { id: 'sub1', topic: 'Sub topic 1' },
-                    { id: 'sub2', topic: 'Sub topic 2' },
+                    { id: 'sub1', topic: 'Sub topic 1', expanded: true, children: [] },
+                    { id: 'sub2', topic: 'Sub topic 2', expanded: true, children: [] },
                 ],
             },
             {
                 id: 'branch2',
                 topic: 'Main Branch 2',
                 direction: 1,
+                expanded: true,
                 children: [
-                    { id: 'sub3', topic: 'Sub topic 3' },
-                    { id: 'sub4', topic: 'Sub topic 4' },
+                    { id: 'sub3', topic: 'Sub topic 3', expanded: true, children: [] },
+                    { id: 'sub4', topic: 'Sub topic 4', expanded: true, children: [] },
                 ],
             },
             {
                 id: 'branch3',
                 topic: 'Main Branch 3',
                 direction: 0,
+                expanded: true,
                 children: [
-                    { id: 'sub5', topic: 'Click to edit' },
+                    { id: 'sub5', topic: 'Click to edit', expanded: true, children: [] },
                 ],
             },
         ],
@@ -225,7 +259,7 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
         },
         refresh: (data: MindElixirData) => {
             if (mindRef.current) {
-                mindRef.current.refresh(data);
+                mindRef.current.refresh(normalizeMindElixirData(data));
             }
         },
         getInstance: () => mindRef.current,
@@ -301,7 +335,8 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
                 restoreExpandedStates(newData.nodeData);
             }
 
-            mindRef.current.refresh(newData);
+            // Normalize to ensure all nodes have required properties (expanded, children)
+            mindRef.current.refresh(normalizeMindElixirData(newData));
         },
         collapseAll: () => {
             if (mindRef.current) {
@@ -327,7 +362,8 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
 
                 if (data.nodeData) {
                     processNode(data.nodeData, 0);
-                    mind.refresh(data); // Re-render with updated expansion states
+                    // Normalize to ensure all nodes have required properties
+                    mind.refresh(normalizeMindElixirData(data));
 
                     // Reset zoom and center
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -363,6 +399,9 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
             mouseSelectionButton: 0,
             mainLinkStyle: 2,
             nodeMenu: true,
+            // Disable MindElixir's built-in undo - it conflicts with cloud sync
+            // (initial cloud data load gets added to undo stack, causing issues)
+            allowUndo: false,
             contextMenuOption: {
                 focus: true,
                 link: true,
@@ -399,7 +438,8 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
         } else {
             data = defaultData;
         }
-        mind.init(data);
+        // Normalize all data before init to ensure expanded/children are set
+        mind.init(normalizeMindElixirData(data));
 
         // If initialized from mermaid (cloud), collapse and center
         if (initialMermaid) {
@@ -415,7 +455,7 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
                 };
                 if (currentData.nodeData) {
                     processNode(currentData.nodeData, 0);
-                    mind.refresh(currentData);
+                    mind.refresh(normalizeMindElixirData(currentData));
                 }
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (mind as any).scale(1);
@@ -470,7 +510,7 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
 
             if (data.nodeData) {
                 processNode(data.nodeData, 0);
-                mind.refresh(data);
+                mind.refresh(normalizeMindElixirData(data));
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (mind as any).scale(1);
                 mind.toCenter();

@@ -108,17 +108,22 @@ export default function Home() {
   // Sync to cloud on any data change
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleDataChange = useCallback((_data: MindElixirData) => {
-    console.log('☁️ handleDataChange called, connected:', cloudConnectedRef.current, 'syncing:', syncingFromCloud.current);
-    if (mindCacheRef.current && cloudConnectedRef.current && mindMapRef.current && !syncingFromCloud.current) {
+    // Don't sync if we're currently applying a remote update
+    if (syncingFromCloud.current) {
+      console.log('☁️ Skipping sync - currently applying remote update');
+      return;
+    }
+
+    const mc = mindCacheRef.current;
+    if (mc && cloudConnectedRef.current && mindMapRef.current) {
       const mermaid = mindMapRef.current.getMermaid();
-      // Block incoming updates while we sync
-      syncingFromCloud.current = true;
-      mindCacheRef.current.set_value('mindmap-mermaid', mermaid);
+      // Track what we're sending to detect echo in subscribe
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((mc as any)._setLastSent) {
+        (mc as any)._setLastSent(mermaid);
+      }
+      mc.set_value('mindmap-mermaid', mermaid);
       console.log('☁️ Synced to cloud');
-      // Keep blocking for 2 seconds to avoid echo
-      setTimeout(() => {
-        syncingFromCloud.current = false;
-      }, 2000);
     }
   }, []);
 
@@ -229,6 +234,9 @@ export default function Home() {
     });
 
     mindCacheRef.current = mc;
+    let unsubscribe: (() => void) | null = null;
+    // Track what we last sent to avoid echo
+    let lastSentMermaid: string | null = null;
 
     // Connect and subscribe
     mc.waitForSync().then(() => {
@@ -240,29 +248,44 @@ export default function Home() {
       if (cloudMermaid) {
         console.log('☁️ Loading initial mindmap from cloud');
         setInitialMermaid(cloudMermaid);
+        lastSentMermaid = cloudMermaid; // Track as "known"
       }
 
       // Now stop loading - MindMap will render with initialMermaid
       setCloudLoading(false);
 
       // Subscribe to cloud changes for future updates
-      mc.subscribe('mindmap-mermaid', (value: unknown) => {
+      // Detect remote updates by comparing with what we last sent
+      unsubscribe = mc.subscribe('mindmap-mermaid', (value: unknown) => {
         const mermaidContent = value as string;
+
+        // If this is the same as what we just sent, it's an echo - ignore it
+        if (mermaidContent === lastSentMermaid) {
+          console.log('☁️ Ignoring echo of our own update');
+          return;
+        }
+
+        // This is a remote update from another client
         if (mermaidContent && mindMapRef.current && !syncingFromCloud.current) {
-          console.log('☁️ Received mermaid update from cloud');
+          console.log('☁️ Received REMOTE mermaid update from cloud');
           syncingFromCloud.current = true;
+          lastSentMermaid = mermaidContent; // Update tracking to prevent re-echo
           mindMapRef.current.setMermaid(mermaidContent);
           setTimeout(() => {
             syncingFromCloud.current = false;
-          }, 500);
+          }, 100);
         }
       });
+
+      // Expose lastSentMermaid setter for handleDataChange
+      (mc as any)._setLastSent = (val: string) => { lastSentMermaid = val; };
     }).catch((error) => {
       console.error('☁️ Cloud connection failed:', error);
       setCloudLoading(false);
     });
 
     return () => {
+      if (unsubscribe) unsubscribe();
       mc.disconnect();
       setCloudConnected(false);
     };

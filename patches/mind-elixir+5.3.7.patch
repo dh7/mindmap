@@ -1,16 +1,355 @@
 diff --git a/node_modules/mind-elixir/dist/MindElixir.js b/node_modules/mind-elixir/dist/MindElixir.js
-index fda8cf9..cfd11b0 100644
+index fda8cf9..c766e18 100644
 --- a/node_modules/mind-elixir/dist/MindElixir.js
 +++ b/node_modules/mind-elixir/dist/MindElixir.js
-@@ -922,7 +922,7 @@ const me = document, Dt = function(e, t) {
- }, He = function(e, t) {
+@@ -54,7 +54,7 @@ const be = {
+ function ue(e) {
+   return e.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+ }
+-const se = function(e, t) {
++const se = function (e, t) {
+   if (t.id === e)
+     return t;
+   if (t.children && t.children.length) {
+@@ -102,7 +102,7 @@ function ie(e, t, n, o) {
+ function W() {
+   return ((/* @__PURE__ */ new Date()).getTime().toString(16) + Math.random().toString(16).substr(2)).substr(2, 16);
+ }
+-const ft = function() {
++const ft = function () {
+   const e = W();
+   return {
+     topic: this.newTopicName,
+@@ -119,7 +119,7 @@ function Ce(e) {
+ }
+ const $ = (e, t) => {
+   let n = 0, o = 0;
+-  for (; t && t !== e; )
++  for (; t && t !== e;)
+     n += t.offsetLeft, o += t.offsetTop, t = t.offsetParent;
+   return { offsetLeft: n, offsetTop: o };
+ }, N = (e, t) => {
+@@ -136,12 +136,12 @@ const $ = (e, t) => {
+ }), Ue = (e) => {
+   const t = /translate\(([^,]+),\s*([^)]+)\)/, n = e.match(t);
+   return n ? { x: parseFloat(n[1]), y: parseFloat(n[2]) } : { x: 0, y: 0 };
+-}, Ee = function(e) {
++}, Ee = function (e) {
+   for (let t = 0; t < e.length; t++) {
+     const { dom: n, evt: o, func: s } = e[t];
+     n.addEventListener(o, s);
+   }
+-  return function() {
++  return function () {
+     for (let n = 0; n < e.length; n++) {
+       const { dom: o, evt: s, func: i } = e[n];
+       o.removeEventListener(s, i);
+@@ -158,29 +158,29 @@ const $ = (e, t) => {
+   e.selectNode(t[Math.ceil(t.length / 2) - 1]);
+ }, gt = (e) => {
+   e.selectNode(e.map.querySelector("me-root>me-tpc"));
+-}, mt = function(e, t) {
++}, mt = function (e, t) {
+   const n = t.parentElement.parentElement.parentElement.previousSibling;
+   if (n) {
+     const o = n.firstChild;
+     e.selectNode(o);
+   }
+-}, yt = function(e, t) {
++}, yt = function (e, t) {
+   const n = t.parentElement.nextSibling;
+   if (n && n.firstChild) {
+     const o = n.firstChild.firstChild.firstChild;
+     e.selectNode(o);
+   }
+-}, De = function(e, t) {
++}, De = function (e, t) {
+   const n = e.currentNode || e.currentNodes?.[0];
+   if (!n) return;
+   const o = n.nodeObj, s = n.offsetParent.offsetParent.parentElement;
+   o.parent ? s.className === t ? yt(e, n) : o.parent?.parent ? mt(e, n) : gt(e) : t === D.LHS ? ut(e) : pt(e);
+-}, Pe = function(e, t) {
++}, Pe = function (e, t) {
+   const n = e.currentNode;
+   if (!n || !n.nodeObj.parent) return;
+   const s = t + "Sibling", i = n.parentElement.parentElement[s];
+   i ? e.selectNode(i.firstChild.firstChild) : e.selectNode(n);
+-}, re = function(e, t, n) {
++}, re = function (e, t, n) {
+   const { scaleVal: o, scaleSensitivity: s } = e;
+   switch (t) {
+     case "in":
+@@ -420,17 +420,17 @@ function bt(e) {
+ function wt() {
+   return {
+     handlers: {},
+-    addListener: function(e, t) {
++    addListener: function (e, t) {
+       this.handlers[e] === void 0 && (this.handlers[e] = []), this.handlers[e].push(t);
+     },
+-    fire: function(e, ...t) {
++    fire: function (e, ...t) {
+       if (this.handlers[e] instanceof Array) {
+         const n = this.handlers[e];
+         for (let o = 0; o < n.length; o++)
+           n[o](...t);
+       }
+     },
+-    removeListener: function(e, t) {
++    removeListener: function (e, t) {
+       if (!this.handlers[e]) return;
+       const n = this.handlers[e];
+       if (!t)
+@@ -441,7 +441,7 @@ function wt() {
+     }
+   };
+ }
+-const le = document, xt = function() {
++const le = document, xt = function () {
+   this.nodes.innerHTML = "";
+   const e = this.createTopic(this.nodeData);
+   Se.call(this, e, this.nodeData), e.draggable = !1;
+@@ -455,7 +455,7 @@ const le = document, xt = function() {
+     });
+   }
+   Ct(this, n, t);
+-}, Ct = function(e, t, n) {
++}, Ct = function (e, t, n) {
+   const o = le.createElement("me-main");
+   o.className = D.LHS;
+   const s = le.createElement("me-main");
+@@ -465,18 +465,18 @@ const le = document, xt = function() {
+     e.direction === 2 ? l.direction === 0 ? o.appendChild(r) : s.appendChild(r) : e.direction === 0 ? o.appendChild(r) : s.appendChild(r);
+   }
+   e.nodes.appendChild(o), e.nodes.appendChild(n), e.nodes.appendChild(s), e.nodes.appendChild(e.lines), e.nodes.appendChild(e.labelContainer);
+-}, Et = function(e, t) {
++}, Et = function (e, t) {
+   const n = le.createElement("me-children");
+   for (let o = 0; o < t.length; o++) {
+     const s = t[o], { grp: i } = e.createWrapper(s);
+     n.appendChild(i);
+   }
+   return n;
+-}, _ = document, Xe = function(e, t) {
++}, _ = document, Xe = function (e, t) {
+   const o = (this?.el ? this.el : t || document).querySelector(`[data-nodeid="me${e}"]`);
+   if (!o) throw new Error(`FindEle: Node ${e} not found, maybe it's collapsed.`);
+   return o;
+-}, Se = function(e, t) {
++}, Se = function (e, t) {
+   if (e.innerHTML = "", t.style) {
+     const n = t.style;
+     for (const o in n)
+@@ -512,7 +512,7 @@ const le = document, xt = function() {
+       typeof o == "string" ? s.textContent = o : (s.textContent = o.text, o.className && (s.className = o.className), o.style && Object.assign(s.style, o.style)), n.appendChild(s);
+     }), e.appendChild(n), e.tags = n;
+   } else e.tags && (e.tags = void 0);
+-}, St = function(e, t) {
++}, St = function (e, t) {
+   const n = _.createElement("me-wrapper"), { p: o, tpc: s } = this.createParent(e);
+   if (n.appendChild(o), !t && e.children && e.children.length > 0) {
+     const i = ke(e.expanded);
+@@ -522,13 +522,13 @@ const le = document, xt = function() {
+     }
+   }
+   return { grp: n, top: o, tpc: s };
+-}, kt = function(e) {
++}, kt = function (e) {
+   const t = _.createElement("me-parent"), n = this.createTopic(e);
+   return Se.call(this, n, e), t.appendChild(n), { p: t, tpc: n };
+-}, Nt = function(e) {
++}, Nt = function (e) {
+   const t = _.createElement("me-children");
+   return t.append(...e), t;
+-}, _t = function(e) {
++}, _t = function (e) {
+   const t = _.createElement("me-tpc");
+   return t.nodeObj = e, t.dataset.nodeid = "me" + e.id, t.draggable = this.draggable, t;
+ };
+@@ -538,7 +538,7 @@ function Je(e) {
+   const n = window.getSelection();
+   n && (n.removeAllRanges(), n.addRange(t));
+ }
+-const Tt = function(e) {
++const Tt = function (e) {
+   if (!e) return;
+   const t = _.createElement("div"), n = e.nodeObj, o = n.topic, { offsetLeft: s, offsetTop: i } = $(this.nodes, e);
+   this.nodes.appendChild(t), t.id = "input-box", t.textContent = o, t.contentEditable = "plaintext-only", t.spellcheck = !1;
+@@ -573,19 +573,19 @@ const Tt = function(e) {
+       origin: o
+     }));
+   });
+-}, ke = function(e) {
++}, ke = function (e) {
+   const t = _.createElement("me-epd");
+   return t.expanded = e !== !1, t.className = e !== !1 ? "minus" : "", t;
+-}, q = document, M = "http://www.w3.org/2000/svg", de = function(e) {
++}, q = document, M = "http://www.w3.org/2000/svg", de = function (e) {
+   const t = e.clientWidth, n = e.clientHeight, o = e.dataset, s = Number(o.x), i = Number(o.y), l = o.anchor;
+   let r = s;
+   l === "middle" ? r = s - t / 2 : l === "end" && (r = s - t), e.style.left = `${r}px`, e.style.top = `${i - n / 2}px`, e.style.visibility = "visible";
+-}, ge = function(e, t, n, o) {
++}, ge = function (e, t, n, o) {
+   const { anchor: s = "middle", color: i, dataType: l, svgId: r } = o, c = document.createElement("div");
+   c.className = "svg-label", c.style.color = i || "#666";
+   const a = "label-" + r;
+   return c.id = a, c.innerHTML = e, c.dataset.type = l, c.dataset.svgId = r, c.dataset.x = t.toString(), c.dataset.y = n.toString(), c.dataset.anchor = s, c;
+-}, Ze = function(e, t, n) {
++}, Ze = function (e, t, n) {
+   const o = q.createElementNS(M, "path");
+   return N(o, {
+     d: e,
+@@ -593,13 +593,13 @@ const Tt = function(e) {
+     fill: "none",
+     "stroke-width": n
+   }), o;
+-}, X = function(e) {
++}, X = function (e) {
+   const t = q.createElementNS(M, "svg");
+   return t.setAttribute("class", e), t.setAttribute("overflow", "visible"), t;
+-}, $e = function() {
++}, $e = function () {
+   const e = q.createElementNS(M, "line");
+   return e.setAttribute("stroke", "#4dc4ff"), e.setAttribute("fill", "none"), e.setAttribute("stroke-width", "2"), e.setAttribute("opacity", "0.45"), e;
+-}, Lt = function(e, t, n, o) {
++}, Lt = function (e, t, n, o) {
+   const s = q.createElementNS(M, "g");
+   return [
+     {
+@@ -631,7 +631,7 @@ const Tt = function(e) {
+       "stroke-width": "15"
+     }), s.appendChild(u), s.appendChild(a), s[l.name] = a;
+   }), s;
+-}, Qe = function(e, t, n) {
++}, Qe = function (e, t, n) {
+   if (!t) return;
+   const o = n.label, s = t.cloneNode(!0);
+   e.nodes.appendChild(s), s.id = "input-box", s.textContent = o, s.contentEditable = "plaintext-only", s.spellcheck = !1, s.style.cssText = `
+@@ -656,7 +656,7 @@ const Tt = function(e) {
+       obj: n
+     }));
+   });
+-}, At = function(e) {
++}, At = function (e) {
+   const t = this.map.querySelector("me-root"), n = t.offsetTop, o = t.offsetLeft, s = t.offsetWidth, i = t.offsetHeight, l = this.map.querySelectorAll("me-main > me-wrapper");
+   this.lines.innerHTML = "";
+   for (let r = 0; r < l.length; r++) {
+@@ -667,7 +667,7 @@ const Tt = function(e) {
+     w.tagName === "svg" && w.remove(), c.appendChild(y), et(this, y, f, c, m, !0);
+   }
+   this.labelContainer.innerHTML = "", this.renderArrow(), this.renderSummary(), this.bus.fire("linkDiv");
+-}, et = function(e, t, n, o, s, i) {
++}, et = function (e, t, n, o, s, i) {
+   const l = o.firstChild, r = o.children[1].children;
+   if (r.length === 0) return;
+   const c = l.offsetTop, a = l.offsetLeft, h = l.offsetWidth, u = l.offsetHeight;
+@@ -908,24 +908,24 @@ function Mt(e, t) {
+     l.onclick = null, r.onclick = null, c.onclick = null, a.onclick = null, h.onclick = null, u.onclick = null, g.onclick = null, v.onclick = null, m.onclick = null, d.onclick = null, y.onclick = null, e.container.oncontextmenu = null;
+   };
+ }
+-const me = document, Dt = function(e, t) {
++const me = document, Dt = function (e, t) {
+   if (!t)
+     return ye(e), e;
+   let n = e.querySelector(".insert-preview");
+   const o = `insert-preview ${t} show`;
+   return n || (n = me.createElement("div"), e.appendChild(n)), n.className = o, e;
+-}, ye = function(e) {
++}, ye = function (e) {
+   if (!e) return;
+   const t = e.querySelectorAll(".insert-preview");
+   for (const n of t || [])
+     n.remove();
+-}, He = function(e, t) {
++}, He = function (e, t) {
    for (const n of t) {
      const o = n.parentElement.parentElement.contains(e);
 -    if (!(e && e.tagName === "ME-TPC" && e !== n && !o && e.nodeObj.parent)) return !1;
 +    if (!(e && e.tagName === "ME-TPC" && e !== n && !o)) return !1;
    }
    return !0;
- }, Pt = function(e) {
+-}, Pt = function(e) {
++}, Pt = function (e) {
+   const t = document.createElement("div");
+   return t.className = "mind-elixir-ghost", e.container.appendChild(t), t;
+ };
+@@ -1000,7 +1000,7 @@ function Ot(e) {
+     { dom: e.map, evt: "dragover", func: r }
+   ]);
+ }
+-const jt = function(e) {
++const jt = function (e) {
+   return ["createSummary", "removeSummary", "finishEditSummary"].includes(e.name) ? {
+     type: "summary",
+     value: e.obj.id
+@@ -1017,7 +1017,7 @@ const jt = function(e) {
+ };
+ function Ht(e) {
+   let t = [], n = -1, o = e.getData(), s = [];
+-  e.undo = function() {
++  e.undo = function () {
+     if (n > -1) {
+       const c = t[n];
+       o = c.prev, e.refresh(c.prev);
+@@ -1028,7 +1028,7 @@ function Ht(e) {
+         n--;
+       }
+     }
+-  }, e.redo = function() {
++  }, e.redo = function () {
+     if (n < t.length - 1) {
+       n++;
+       const c = t[n];
+@@ -1039,7 +1039,7 @@ function Ht(e) {
+       }
+     }
+   };
+-  const i = function(c) {
++  const i = function (c) {
+     if (c.name === "beginEdit") return;
+     t = t.slice(0, n + 1);
+     const a = e.getData(), h = {
+@@ -1050,9 +1050,9 @@ function Ht(e) {
+       next: a
+     };
+     t.push(h), o = a, n = t.length - 1;
+-  }, l = function(c) {
++  }, l = function (c) {
+     (c.metaKey || c.ctrlKey) && (c.shiftKey && c.key === "Z" || c.key === "y") ? e.redo() : (c.metaKey || c.ctrlKey) && c.key === "z" && e.undo();
+-  }, r = function() {
++  }, r = function () {
+     s = e.currentNodes.map((c) => c.nodeObj);
+   };
+   return e.bus.addListener("operation", i), e.bus.addListener("selectNodes", r), e.container.addEventListener("keydown", l), () => {
+@@ -1298,7 +1298,7 @@ class en extends Ut {
+     }
+     if (!i)
+       return;
+-    for (this.resolveSelectables(); !this._selectables.includes(i); )
++    for (this.resolveSelectables(); !this._selectables.includes(i);)
+       if (i.parentElement)
+         i = i.parentElement;
+       else {
+@@ -1444,8 +1444,8 @@ class en extends Ut {
+     for (let p = 0; p < l.length; p++) {
+       const d = l[p];
+       !u.includes(d) && !// Check if the user wants to keep previously selected elements, e.g.,
+-      // not make them part of the current selection as soon as they're touched.
+-      (m && i.includes(d)) && v.push(d);
++        // not make them part of the current selection as soon as they're touched.
++        (m && i.includes(d)) && v.push(d);
+     }
+     o.selected = u, o.changed = { added: g, removed: v }, this._latestElement = void 0;
+   }
+@@ -1640,7 +1640,7 @@ function tn(e) {
+   );
+   e.selection = n;
+ }
+-const nn = function(e, t = !0) {
++const nn = function (e, t = !0) {
+   this.theme = e;
+   const o = {
+     ...(e.type === "dark" ? we : be).cssVar,
 @@ -1680,7 +1680,7 @@ function ln(e, t) {
    n !== void 0 && (n[o] = t, t.children = [e]);
  }
@@ -20,3 +359,472 @@ index fda8cf9..cfd11b0 100644
      n.children ? n.children.push(t) : n.children = [t];
    else {
      t.direction !== void 0 && (t.direction = n.direction);
+@@ -1689,7 +1689,7 @@ function ot(e, t, n) {
+     e === "before" ? o.splice(s, 0, t) : o.splice(s + 1, 0, t);
+   }
+ }
+-const cn = function({ map: e, direction: t }, n) {
++const cn = function ({ map: e, direction: t }, n) {
+   if (t === 0)
+     return 0;
+   if (t === 1)
+@@ -1698,7 +1698,7 @@ const cn = function({ map: e, direction: t }, n) {
+     const o = e.querySelector(".lhs")?.childElementCount || 0, s = e.querySelector(".rhs")?.childElementCount || 0;
+     return o <= s ? (n.direction = 0, 0) : (n.direction = 1, 1);
+   }
+-}, st = function(e, t, n) {
++}, st = function (e, t, n) {
+   const o = n.children[0].children[0], s = t.parentElement;
+   if (s.tagName === "ME-PARENT") {
+     if (J(o), s.children[1])
+@@ -1709,7 +1709,7 @@ const cn = function({ map: e, direction: t }, n) {
+     }
+     e.linkDiv(n.offsetParent);
+   } else s.tagName === "ME-ROOT" && (cn(e, o.nodeObj) === 0 ? e.container.querySelector(".lhs")?.appendChild(n) : e.container.querySelector(".rhs")?.appendChild(n), e.linkDiv());
+-}, an = function(e, t) {
++}, an = function (e, t) {
+   const n = e.parentNode;
+   if (t === 0) {
+     const o = n.parentNode.parentNode;
+@@ -1719,10 +1719,10 @@ const cn = function({ map: e, direction: t }, n) {
+ }, it = {
+   before: "beforebegin",
+   after: "afterend"
+-}, J = function(e) {
++}, J = function (e) {
+   const n = e.parentElement.parentElement.lastElementChild;
+   n?.tagName === "svg" && n?.remove();
+-}, dn = function(e, t) {
++}, dn = function (e, t) {
+   const n = e.nodeObj, o = Ce(n);
+   o.style && t.style && (t.style = Object.assign(o.style, t.style));
+   const s = Object.assign(n, t);
+@@ -1731,15 +1731,15 @@ const cn = function({ map: e, direction: t }, n) {
+     obj: s,
+     origin: o
+   });
+-}, Ne = function(e, t, n) {
++}, Ne = function (e, t, n) {
+   if (!t) return null;
+-  const o = t.nodeObj;
++  const o = t.nodeObj; if (!o) return null;
+   o.expanded === !1 && (e.expandNode(t, !0), t = e.findEle(o.id));
+   const s = n || e.generateNewObj();
+   o.children ? o.children.push(s) : o.children = [s], R(e.nodeData);
+   const { grp: i, top: l } = e.createWrapper(s);
+   return st(e, t, i), { newTop: l, newNodeObj: s };
+-}, hn = function(e, t, n) {
++}, hn = function (e, t, n) {
+   const o = t || this.currentNode;
+   if (!o) return;
+   const s = o.nodeObj;
+@@ -1767,7 +1767,7 @@ const cn = function({ map: e, direction: t }, n) {
+     type: e,
+     obj: i
+   }), this.selectNode(c.firstChild, !0);
+-}, fn = function(e, t) {
++}, fn = function (e, t) {
+   const n = e || this.currentNode;
+   if (!n) return;
+   J(n);
+@@ -1783,7 +1783,7 @@ const cn = function({ map: e, direction: t }, n) {
+     name: "insertParent",
+     obj: s
+   });
+-}, un = function(e, t) {
++}, un = function (e, t) {
+   const n = e || this.currentNode;
+   if (!n) return;
+   const o = Ne(this, n, t);
+@@ -1793,7 +1793,7 @@ const cn = function({ map: e, direction: t }, n) {
+     name: "addChild",
+     obj: i
+   }), t || this.editTopic(s.firstChild), this.selectNode(s.firstChild, !0);
+-}, pn = function(e, t) {
++}, pn = function (e, t) {
+   const n = Ce(e.nodeObj);
+   xe(n);
+   const o = Ne(this, t, n);
+@@ -1803,7 +1803,7 @@ const cn = function({ map: e, direction: t }, n) {
+     name: "copyNode",
+     obj: s
+   });
+-}, gn = function(e, t) {
++}, gn = function (e, t) {
+   e = ae(e);
+   const n = [];
+   for (let o = 0; o < e.length; o++) {
+@@ -1818,7 +1818,7 @@ const cn = function({ map: e, direction: t }, n) {
+     name: "copyNodes",
+     objs: n
+   });
+-}, mn = function(e) {
++}, mn = function (e) {
+   const t = e || this.currentNode;
+   if (!t) return;
+   const n = t.nodeObj;
+@@ -1828,7 +1828,7 @@ const cn = function({ map: e, direction: t }, n) {
+     name: "moveUpNode",
+     obj: n
+   });
+-}, yn = function(e) {
++}, yn = function (e) {
+   const t = e || this.currentNode;
+   if (!t) return;
+   const n = t.nodeObj;
+@@ -1838,7 +1838,7 @@ const cn = function({ map: e, direction: t }, n) {
+     name: "moveDownNode",
+     obj: n
+   });
+-}, vn = function(e) {
++}, vn = function (e) {
+   if (e.length === 0) return;
+   e = ae(e);
+   for (const n of e) {
+@@ -1850,7 +1850,7 @@ const cn = function({ map: e, direction: t }, n) {
+     name: "removeNodes",
+     objs: e.map((n) => n.nodeObj)
+   });
+-}, bn = function(e, t) {
++}, bn = function (e, t) {
+   e = ae(e);
+   const n = t.nodeObj;
+   n.expanded === !1 && (this.expandNode(t, !0), t = this.findEle(n.id));
+@@ -1881,14 +1881,14 @@ const cn = function({ map: e, direction: t }, n) {
+     objs: e.map((l) => l.nodeObj),
+     toObj: s
+   });
+-}, wn = function(e, t) {
++}, wn = function (e, t) {
+   rt(e, "before", t, this);
+-}, xn = function(e, t) {
++}, xn = function (e, t) {
+   rt(e, "after", t, this);
+-}, Cn = function(e) {
++}, Cn = function (e) {
+   const t = e || this.currentNode;
+   t && (t.nodeObj.dangerouslySetInnerHTML || this.editTopic(t));
+-}, En = function(e, t) {
++}, En = function (e, t) {
+   e.text.textContent = t, e.nodeObj.topic = t, this.linkDiv();
+ }, lt = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+   __proto__: null,
+@@ -1917,40 +1917,40 @@ function Sn(e) {
+     theme: e.theme
+   };
+ }
+-const kn = function(e) {
++const kn = function (e) {
+   const t = this.container, n = e.getBoundingClientRect(), o = t.getBoundingClientRect();
+   if (n.top > o.bottom || n.bottom < o.top || n.left > o.right || n.right < o.left) {
+     const i = n.left + n.width / 2, l = n.top + n.height / 2, r = o.left + o.width / 2, c = o.top + o.height / 2, a = i - r, h = l - c;
+     this.move(-a, -h, !0);
+   }
+-}, Nn = function(e, t, n) {
++}, Nn = function (e, t, n) {
+   this.clearSelection(), this.scrollIntoView(e), this.selection.select(e), t && this.bus.fire("selectNewNode", e.nodeObj);
+-}, _n = function(e) {
++}, _n = function (e) {
+   this.selection.select(e);
+-}, Tn = function(e) {
++}, Tn = function (e) {
+   this.selection.deselect(e);
+-}, Ln = function() {
++}, Ln = function () {
+   this.unselectNodes(this.currentNodes), this.unselectSummary(), this.unselectArrow();
+-}, An = function() {
++}, An = function () {
+   const e = Sn(this);
+   return JSON.stringify(e, (t, n) => {
+     if (!(t === "parent" && typeof n != "string"))
+       return n;
+   });
+-}, Mn = function() {
++}, Mn = function () {
+   return JSON.parse(this.getDataString());
+-}, Dn = function() {
++}, Dn = function () {
+   this.editable = !0;
+-}, Pn = function() {
++}, Pn = function () {
+   this.editable = !1;
+-}, $n = function(e, t = { x: 0, y: 0 }) {
++}, $n = function (e, t = { x: 0, y: 0 }) {
+   if (e < this.scaleMin || e > this.scaleMax) return;
+   const n = this.container.getBoundingClientRect(), o = t.x ? t.x - n.left - n.width / 2 : 0, s = t.y ? t.y - n.top - n.height / 2 : 0, { dx: i, dy: l } = ct(this), r = this.map.style.transform, { x: c, y: a } = Ue(r), h = c - i, u = a - l, g = this.scaleVal, v = (-o + h) * (1 - e / g), m = (-s + u) * (1 - e / g);
+   this.map.style.transform = `translate(${c - v}px, ${a - m}px) scale(${e})`, this.scaleVal = e, this.bus.fire("scale", e);
+-}, On = function() {
++}, On = function () {
+   const e = this.nodes.offsetHeight / this.container.offsetHeight, t = this.nodes.offsetWidth / this.container.offsetWidth, n = 1 / Math.max(1, Math.max(e, t));
+   this.scaleVal = n, this.map.style.transform = "scale(" + n + ")", this.bus.fire("scale", n);
+-}, jn = function(e, t, n = !1) {
++}, jn = function (e, t, n = !1) {
+   const { map: o, scaleVal: s, bus: i } = this;
+   if (n && o.style.transition === "transform 0.3s")
+     return;
+@@ -1963,30 +1963,32 @@ const kn = function(e) {
+   const { container: t, map: n, nodes: o } = e, s = n.querySelector("me-root"), i = s.offsetTop, l = s.offsetLeft, r = s.offsetWidth, c = s.offsetHeight;
+   let a, h;
+   return e.alignment === "root" ? (a = t.offsetWidth / 2 - l - r / 2, h = t.offsetHeight / 2 - i - c / 2, n.style.transformOrigin = `${l + r / 2}px 50%`) : (a = (t.offsetWidth - o.offsetWidth) / 2, h = (t.offsetHeight - o.offsetHeight) / 2, n.style.transformOrigin = "50% 50%"), { dx: a, dy: h };
+-}, Hn = function() {
++}, Hn = function () {
+   const { map: e, container: t } = this, { dx: n, dy: o } = ct(this);
+   t.scrollTop = 0, t.scrollLeft = 0, e.style.transform = `translate(${n}px, ${o}px) scale(${this.scaleVal})`;
+-}, Bn = function(e) {
++}, Bn = function (e) {
+   e(this);
+-}, Rn = function(e) {
++}, Rn = function (e) {
+   e.nodeObj.parent && (this.clearSelection(), this.tempDirection === null && (this.tempDirection = this.direction), this.isFocusMode || (this.nodeDataBackup = this.nodeData, this.isFocusMode = !0), this.nodeData = e.nodeObj, this.initRight(), this.toCenter());
+-}, In = function() {
++}, In = function () {
+   this.isFocusMode = !1, this.tempDirection !== null && (this.nodeData = this.nodeDataBackup, this.direction = this.tempDirection, this.tempDirection = null, this.refresh(), this.toCenter());
+-}, Fn = function() {
++}, Fn = function () {
+   this.direction = 0, this.refresh(), this.toCenter(), this.bus.fire("changeDirection", this.direction);
+-}, Wn = function() {
++}, Wn = function () {
+   this.direction = 1, this.refresh(), this.toCenter(), this.bus.fire("changeDirection", this.direction);
+-}, Kn = function() {
++}, Kn = function () {
+   this.direction = 2, this.refresh(), this.toCenter(), this.bus.fire("changeDirection", this.direction);
+-}, zn = function(e) {
++}, zn = function (e) {
+   this.locale = e, this.refresh();
+-}, Gn = function(e, t) {
++}, Gn = function (e, t) {
++  if (!e || !e.nodeObj) { console.warn("expandNode: missing nodeObj"); return; }
+   const n = e.nodeObj;
+   typeof t == "boolean" ? n.expanded = t : n.expanded !== !1 ? n.expanded = !1 : n.expanded = !0;
+   const o = e.getBoundingClientRect(), s = {
+     x: o.left,
+     y: o.top
+-  }, i = e.parentNode, l = i.children[1];
++  }, i = e.parentNode, l = i?.children?.[1];
++  if (!l) { console.warn("expandNode: missing expand button element"); return; }
+   if (l.expanded = n.expanded, l.className = n.expanded ? "minus" : "", J(e), n.expanded) {
+     const u = this.createChildren(
+       n.children.map((g) => this.createWrapper(g).grp)
+@@ -2000,7 +2002,7 @@ const kn = function(e) {
+     y: r.top
+   }, a = s.x - c.x, h = s.y - c.y;
+   this.move(a, h), this.bus.fire("expandNode", n);
+-}, Yn = function(e, t) {
++}, Yn = function (e, t) {
+   const n = e.nodeObj, o = e.getBoundingClientRect(), s = {
+     x: o.left,
+     y: o.top
+@@ -2011,7 +2013,7 @@ const kn = function(e) {
+     y: i.top
+   }, r = s.x - l.x, c = s.y - l.y;
+   this.move(r, c);
+-}, qn = function(e) {
++}, qn = function (e) {
+   this.clearSelection(), e && (e = JSON.parse(JSON.stringify(e)), this.nodeData = e.nodeData, this.arrows = e.arrows || [], this.summaries = e.summaries || [], e.theme && this.changeTheme(e.theme)), R(this.nodeData), this.layout(), this.linkDiv();
+ }, Vn = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+   __proto__: null,
+@@ -2038,7 +2040,7 @@ const kn = function(e) {
+   setLocale: zn,
+   toCenter: Hn,
+   unselectNodes: Tn
+-}, Symbol.toStringTag, { value: "Module" })), Un = function(e) {
++}, Symbol.toStringTag, { value: "Module" })), Un = function (e) {
+   return {
+     dom: e,
+     moved: !1,
+@@ -2145,7 +2147,7 @@ function G(e) {
+     y: n
+   };
+ }
+-const _e = function(e, t, n, o, s) {
++const _e = function (e, t, n, o, s) {
+   if (!t || !n)
+     return;
+   const i = ce(e, t, o.delta1), l = ce(e, n, o.delta2), { x: r, y: c } = G(i), { ctrlX: a, ctrlY: h } = i, { ctrlX: u, ctrlY: g } = l, { x: v, y: m } = G(l), p = ie(u, g, v, m);
+@@ -2166,7 +2168,7 @@ const _e = function(e, t, n, o, s) {
+     svgId: x
+   });
+   y.labelEl = E, y.arrowObj = o, y.dataset.linkid = o.id, e.labelContainer.appendChild(E), e.linkSvgGroup.appendChild(y), de(E), s || (e.arrows.push(o), e.currentArrow = y, dt(e, o, i, l));
+-}, Zn = function(e, t, n = {}) {
++}, Zn = function (e, t, n = {}) {
+   const o = {
+     id: W(),
+     label: "Custom Link",
+@@ -2186,14 +2188,14 @@ const _e = function(e, t, n, o, s) {
+     name: "createArrow",
+     obj: o
+   });
+-}, Qn = function(e) {
++}, Qn = function (e) {
+   he(this);
+   const t = { ...e, id: W() };
+   _e(this, this.findEle(t.from), this.findEle(t.to), t), this.bus.fire("operation", {
+     name: "createArrow",
+     obj: t
+   });
+-}, eo = function(e) {
++}, eo = function (e) {
+   let t;
+   if (e ? t = e : t = this.currentArrow, !t) return;
+   he(this);
+@@ -2204,13 +2206,13 @@ const _e = function(e, t, n, o, s) {
+       id: n
+     }
+   });
+-}, to = function(e) {
++}, to = function (e) {
+   this.currentArrow = e;
+   const t = e.arrowObj, n = this.findEle(t.from), o = this.findEle(t.to), s = ce(this, n, t.delta1), i = ce(this, o, t.delta2);
+   dt(this, t, s, i);
+-}, no = function() {
++}, no = function () {
+   he(this), this.currentArrow = null;
+-}, fe = function(e, t) {
++}, fe = function (e, t) {
+   const n = document.createElementNS(M, "path");
+   return N(n, {
+     d: e,
+@@ -2220,7 +2222,7 @@ const _e = function(e, t, n, o, s) {
+     "stroke-linecap": "round",
+     "stroke-linejoin": "round"
+   }), n;
+-}, oo = function(e, t) {
++}, oo = function (e, t) {
+   const n = document.createElementNS(M, "g");
+   n.setAttribute("class", "arrow-highlight"), n.setAttribute("opacity", "0.45");
+   const o = fe(e.line.getAttribute("d"), t);
+@@ -2231,17 +2233,17 @@ const _e = function(e, t, n, o, s) {
+     n.appendChild(i);
+   }
+   e.insertBefore(n, e.firstChild);
+-}, so = function(e) {
++}, so = function (e) {
+   const t = e.querySelector(".arrow-highlight");
+   t && t.remove();
+-}, io = function(e) {
++}, io = function (e) {
+   const t = e.querySelector(".arrow-highlight");
+   if (!t) return;
+   const n = t.querySelectorAll("path");
+   n.length >= 1 && n[0].setAttribute("d", e.line.getAttribute("d")), n.length >= 2 && n[1].setAttribute("d", e.arrow1.getAttribute("d")), n.length >= 3 && e.arrow2.getAttribute("d") && n[2].setAttribute("d", e.arrow2.getAttribute("d"));
+-}, he = function(e) {
++}, he = function (e) {
+   e.helper1?.destroy(), e.helper2?.destroy(), e.linkController.style.display = "none", e.P2.style.display = "none", e.P3.style.display = "none", e.currentArrow && so(e.currentArrow);
+-}, dt = function(e, t, n, o) {
++}, dt = function (e, t, n, o) {
+   const { linkController: s, P2: i, P3: l, line1: r, line2: c, nodes: a, map: h, currentArrow: u, bus: g } = e;
+   if (!u) return;
+   s.style.display = "initial", i.style.display = "initial", l.style.display = "initial", a.appendChild(s), a.appendChild(i), a.appendChild(l), oo(u, Xn);
+@@ -2283,7 +2285,7 @@ const ao = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+   selectArrow: to,
+   tidyArrow: co,
+   unselectArrow: no
+-}, Symbol.toStringTag, { value: "Module" })), ho = function(e) {
++}, Symbol.toStringTag, { value: "Module" })), ho = function (e) {
+   if (e.length === 0) throw new Error("No selected node.");
+   if (e.length === 1) {
+     const c = e[0].nodeObj, a = e[0].nodeObj.parent;
+@@ -2299,7 +2301,7 @@ const ao = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+   const n = e.map((c) => {
+     let a = c.nodeObj;
+     const h = [];
+-    for (; a.parent; ) {
++    for (; a.parent;) {
+       const u = a.parent, v = u.children?.indexOf(a);
+       a = u, h.unshift({ node: a, index: v });
+     }
+@@ -2320,10 +2322,10 @@ const ao = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+     start: i,
+     end: l
+   };
+-}, fo = function(e) {
++}, fo = function (e) {
+   const t = document.createElementNS(M, "g");
+   return t.setAttribute("id", e), t;
+-}, qe = function(e, t) {
++}, qe = function (e, t) {
+   const n = document.createElementNS(M, "path");
+   return N(n, {
+     d: e,
+@@ -2332,11 +2334,11 @@ const ao = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+     "stroke-linecap": "round",
+     "stroke-width": "2"
+   }), n;
+-}, uo = (e) => e.parentElement.parentElement, po = function(e, { parent: t, start: n }) {
++}, uo = (e) => e.parentElement.parentElement, po = function (e, { parent: t, start: n }) {
+   const o = e.findEle(t), s = o.nodeObj;
+   let i;
+   return s.parent ? i = o.closest("me-main").className : i = e.findEle(s.children[n].id).closest("me-main").className, i;
+-}, Te = function(e, t) {
++}, Te = function (e, t) {
+   const { id: n, label: o, parent: s, start: i, end: l, style: r } = t, { nodes: c, theme: a, summarySvg: h } = e, g = e.findEle(s).nodeObj, v = po(e, t);
+   let m = 1 / 0, p = 0, d = 0, f = 0;
+   for (let U = i; U <= l; U++) {
+@@ -2351,38 +2353,38 @@ const ao = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+   v === D.LHS ? (y = qe(`M ${m + 10} ${C} c -5 0 -10 5 -10 10 L ${m} ${x - 10} c 0 5 5 10 10 10 M ${m} ${b} h -10`, E), w = ge(O, m - 20, b, { anchor: "end", color: k, dataType: "summary", svgId: L })) : (y = qe(`M ${p - 10} ${C} c 5 0 10 5 10 10 L ${p} ${x - 10} c 0 5 -5 10 -10 10 M ${p} ${b} h 10`, E), w = ge(O, p + 20, b, { anchor: "start", color: k, dataType: "summary", svgId: L }));
+   const j = fo(L);
+   return j.appendChild(y), e.labelContainer.appendChild(w), de(w), j.summaryObj = t, j.labelEl = w, h.appendChild(j), j;
+-}, go = function(e = {}) {
++}, go = function (e = {}) {
+   if (!this.currentNodes) return;
+   const { currentNodes: t, summaries: n, bus: o } = this, { parent: s, start: i, end: l } = ho(t), r = { id: W(), parent: s, start: i, end: l, label: "summary", style: e.style }, c = Te(this, r);
+   n.push(r), this.editSummary(c), o.fire("operation", {
+     name: "createSummary",
+     obj: r
+   });
+-}, mo = function(e) {
++}, mo = function (e) {
+   const t = W(), n = { ...e, id: t };
+   Te(this, n), this.summaries.push(n), this.bus.fire("operation", {
+     name: "createSummary",
+     obj: n
+   });
+-}, yo = function(e) {
++}, yo = function (e) {
+   const t = this.summaries.findIndex((n) => n.id === e);
+   t > -1 && (this.summaries.splice(t, 1), this.nodes.querySelector("#s-" + e)?.remove(), this.nodes.querySelector("#label-s-" + e)?.remove()), this.bus.fire("operation", {
+     name: "removeSummary",
+     obj: { id: e }
+   });
+-}, vo = function(e) {
++}, vo = function (e) {
+   const t = e.labelEl;
+   t && t.classList.add("selected"), this.currentSummary = e;
+-}, bo = function() {
++}, bo = function () {
+   this.currentSummary?.labelEl?.classList.remove("selected"), this.currentSummary = null;
+-}, wo = function() {
++}, wo = function () {
+   this.summarySvg.innerHTML = "", this.summaries.forEach((e) => {
+     try {
+       Te(this, e);
+     } catch {
+     }
+   }), this.nodes.insertAdjacentElement("beforeend", this.summarySvg);
+-}, xo = function(e) {
++}, xo = function (e) {
+   e && e.labelEl && Qe(this, e.labelEl, e.summaryObj);
+ }, Co = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+   __proto__: null,
+@@ -2536,10 +2538,10 @@ function Po(e) {
+     }, o.readAsDataURL(e);
+   });
+ }
+-const $o = function(e = !1, t) {
++const $o = function (e = !1, t) {
+   const n = Mo(this, e), o = Do(n, t);
+   return new Blob([o], { type: "image/svg+xml" });
+-}, Oo = async function(e = !1, t) {
++}, Oo = async function (e = !1, t) {
+   const n = this.exportSvg(e, t), o = await Po(n);
+   return new Promise((s, i) => {
+     const l = new Image();
+@@ -2554,7 +2556,7 @@ const $o = function(e = !1, t) {
+   exportSvg: $o
+ }, Symbol.toStringTag, { value: "Module" }));
+ function Ho(e, t) {
+-  return async function(...n) {
++  return async function (...n) {
+     const o = this.before[t];
+     o && !await o.apply(this, n) || e.apply(this, n);
+   };
