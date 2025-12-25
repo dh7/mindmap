@@ -412,17 +412,33 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
         },
     }));
 
+    // Track last mouse position for determining drop direction during drag
+    const lastMouseXRef = useRef<number>(0);
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            lastMouseXRef.current = e.clientX;
+        };
+        // Also track during drag operations - dragover fires continuously during drag
+        const handleDragOver = (e: DragEvent) => {
+            lastMouseXRef.current = e.clientX;
+        };
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('dragover', handleDragOver);
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('dragover', handleDragOver);
+        };
+    }, []);
+
     const handleOperation = useCallback(() => {
-        console.log('MindMap: operation event fired');
         if (mindRef.current && onDataChange) {
             onDataChange(mindRef.current.getData());
         }
     }, [onDataChange]);
 
     useEffect(() => {
-        console.log('MindMap useEffect running, container:', !!containerRef.current, 'mindRef:', !!mindRef.current);
         if (!containerRef.current || mindRef.current) return;
-        console.log('MindMap: Creating MindElixir instance');
 
         // Mind Elixir types are incomplete - using type assertion for runtime-valid options
         const options = {
@@ -461,6 +477,31 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
                         },
                     },
                 ],
+            },
+            // Before hooks to detect moves to root and set direction based on drop position
+            before: {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                moveNodeIn: async (from: any[], to: any) => {
+                    const toNodeObj = to?.nodeObj;
+                    // If dropping into root (no parent), set direction based on mouse position
+                    if (toNodeObj && !toNodeObj.parent) {
+                        const rootEl = containerRef.current?.querySelector('me-root');
+                        if (rootEl && from.length > 0) {
+                            const rootRect = rootEl.getBoundingClientRect();
+                            const rootCenterX = rootRect.left + rootRect.width / 2;
+                            const mouseX = lastMouseXRef.current;
+                            const direction = mouseX < rootCenterX ? 0 : 1;
+
+                            // Set direction DIRECTLY on the nodeObj before the move
+                            for (const f of from) {
+                                if (f.nodeObj) {
+                                    f.nodeObj.direction = direction;
+                                }
+                            }
+                        }
+                    }
+                    return true;
+                },
             },
         } as Options;
 
@@ -504,13 +545,11 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
         // Listen for operations
         mind.bus.addListener('operation', handleOperation);
 
-        // Debug: log all events
+        // Hook into event bus to capture operation events for direction fix
         const originalFire = mind.bus.fire.bind(mind.bus);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (mind.bus as any).fire = (event: string, ...args: unknown[]) => {
-            console.log('MindElixir event:', event);
             if (event === 'operation') {
-                console.log('Operation event - calling handleOperation');
                 handleOperation();
             }
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
