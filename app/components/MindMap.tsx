@@ -437,6 +437,50 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
         }
     }, [onDataChange]);
 
+    // Track the last initialMermaid we processed to detect changes
+    const lastInitialMermaidRef = useRef<string | null | undefined>(undefined);
+
+    // Handle initialMermaid changes (e.g., when switching mindmaps)
+    useEffect(() => {
+        // Skip if mindmap not ready or if this is the first render
+        if (!mindRef.current || !isReady) return;
+
+        // Skip if initialMermaid hasn't changed
+        if (initialMermaid === lastInitialMermaidRef.current) return;
+
+        // Update tracking
+        lastInitialMermaidRef.current = initialMermaid;
+
+        // Apply the new mermaid content
+        const mermaidContent = initialMermaid || '';
+        if (mermaidContent) {
+            const newData = mermaidToData(mermaidContent);
+
+            // Collapse all nodes first
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const processNode = (node: any, depth: number) => {
+                if (!node) return;
+                node.expanded = depth === 0;
+                if (node.children) {
+                    node.children.forEach((child: any) => processNode(child, depth + 1));
+                }
+            };
+            if (newData.nodeData) {
+                processNode(newData.nodeData, 0);
+            }
+
+            mindRef.current.refresh(normalizeMindElixirData(newData));
+        } else {
+            // Empty mermaid - reset to default
+            mindRef.current.refresh(normalizeMindElixirData(defaultData));
+        }
+
+        // Center immediately after refresh
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mindRef.current as any).scale(1);
+        mindRef.current.toCenter();
+    }, [initialMermaid, isReady]);
+
     useEffect(() => {
         if (!containerRef.current || mindRef.current) return;
 

@@ -6,6 +6,11 @@ import { MindCache } from 'mindcache';
 import type { MindMapRef } from './components/MindMap';
 import type { MindElixirData } from 'mind-elixir';
 
+// System tags for LLM permissions
+const TAG_LLM_READ = 'LLMRead';
+const TAG_LLM_WRITE = 'LLMWrite';
+const TAG_MINDMAP = 'mindmap';
+
 // Dynamic import for MindElixir to avoid SSR issues
 const MindMap = dynamic(() => import('./components/MindMap'), {
   ssr: false,
@@ -54,6 +59,19 @@ const Icons = {
       <line x1="3" y1="21" x2="10" y2="14" />
     </svg>
   ),
+
+  Plus: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  ),
+  Trash: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  ),
 };
 
 // Toast notification component
@@ -75,7 +93,15 @@ export default function Home() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const mermaidInputRef = useRef<HTMLInputElement>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+
   const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  // Mindmap management state
+  const [activeMindmap, setActiveMindmap] = useState('mindmap-mermaid'); // Default key
+  const activeMindmapRef = useRef(activeMindmap); // Ref for use in callbacks to avoid stale closures
+  const [mindmapKeys, setMindmapKeys] = useState<string[]>([]);
+  const [mindmapMenuOpen, setMindmapMenuOpen] = useState(false);
+  const mindmapMenuRef = useRef<HTMLDivElement>(null);
 
   // Cloud sync state
   const [cloudConnected, setCloudConnected] = useState(false);
@@ -90,6 +116,11 @@ export default function Home() {
     cloudConnectedRef.current = cloudConnected;
   }, [cloudConnected]);
 
+  // Keep activeMindmapRef in sync with activeMindmap state
+  useEffect(() => {
+    activeMindmapRef.current = activeMindmap;
+  }, [activeMindmap]);
+
   // Keyboard shortcuts for undo/redo using MindCache
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -102,7 +133,8 @@ export default function Home() {
         if (mc.canUndoAll()) {
           mc.undoAll();
           // Get the updated value and apply to mindmap
-          const mermaid = mc.get_value('mindmap-mermaid') as string;
+
+          const mermaid = mc.get_value(activeMindmap) as string;
           if (mermaid && mindMapRef.current) {
             syncingFromCloud.current = true;
             mindMapRef.current.setMermaid(mermaid);
@@ -118,7 +150,8 @@ export default function Home() {
         if (mc.canRedoAll()) {
           mc.redoAll();
           // Get the updated value and apply to mindmap
-          const mermaid = mc.get_value('mindmap-mermaid') as string;
+
+          const mermaid = mc.get_value(activeMindmap) as string;
           if (mermaid && mindMapRef.current) {
             syncingFromCloud.current = true;
             mindMapRef.current.setMermaid(mermaid);
@@ -138,6 +171,18 @@ export default function Home() {
     const handleClickOutside = (event: MouseEvent) => {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
         setExportMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+
+  }, []);
+
+  // Close mindmap menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (mindmapMenuRef.current && !mindmapMenuRef.current.contains(event.target as Node)) {
+        setMindmapMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -165,10 +210,11 @@ export default function Home() {
       if ((mc as any)._setLastSent) {
         (mc as any)._setLastSent(mermaid);
       }
-      mc.set_value('mindmap-mermaid', mermaid);
+
+      mc.set_value(activeMindmapRef.current, mermaid);
       console.log('☁️ Synced to cloud');
     }
-  }, []);
+  }, [activeMindmap]);
 
   // Open Mermaid file (Import)
   const handleImport = useCallback(() => {
@@ -286,20 +332,57 @@ export default function Home() {
       setCloudConnected(true);
       console.log('☁️ Connected to MindCache cloud');
 
-      // Ensure the document exists (creates if not present)
+      // Refresh function to update list of mindmaps
+      const refreshMindmapList = () => {
+        const keys = mc.getKeysByTag(TAG_MINDMAP);
+        if (keys.length === 0) {
+          // No mindmaps found, create default
+          console.log('☁️ Creating default mindmap');
+          const defaultKey = 'mindmap-mermaid';
+          mc.set_value(defaultKey, '', { type: 'document' });
+          mc.addTag(defaultKey, TAG_MINDMAP);
+
+          // Set permissions for default
+          mc.systemAddTag(defaultKey, TAG_LLM_READ);
+          mc.systemAddTag(defaultKey, TAG_LLM_WRITE);
+
+          setMindmapKeys([defaultKey]);
+          setActiveMindmap(defaultKey);
+        } else {
+          setMindmapKeys(keys);
+          // If current active is not in list (shouldn't happen normally but for safety), switch to first
+          if (!keys.includes(activeMindmap) && keys.length > 0) {
+            setActiveMindmap(keys[0]);
+          }
+
+          // Ensure active mindmap has permissions
+          // Note: We might want to iterate all and ensure ONLY active has permissions, 
+          // but enforcing on active is detailed enough for now.
+          // The switching logic will handle the swap.
+        }
+      };
+
+      // Initial list load
+      refreshMindmapList();
+
+      // Ensure the CURRENT active document exists (creates if not present)
       // This is required for document-type keys in MindCache
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (!(mc as any).get_document('mindmap-mermaid')) {
-        console.log('☁️ Initializing document-type key');
-        mc.set_value('mindmap-mermaid', '', { type: 'document' });
+      if (!(mc as any).get_document(activeMindmap)) {
+        console.log('☁️ Initializing document-type key', activeMindmap);
+        // Note: we usually do this in refreshMindmapList for new keys, but good fallback
+        mc.set_value(activeMindmap, '', { type: 'document' });
+        mc.addTag(activeMindmap, TAG_MINDMAP);
       }
 
       // Load initial data from cloud and store in state
-      const cloudMermaid = mc.get_value('mindmap-mermaid') as string;
+      const cloudMermaid = mc.get_value(activeMindmap) as string;
       if (cloudMermaid) {
         console.log('☁️ Loading initial mindmap from cloud');
         setInitialMermaid(cloudMermaid);
         lastSentMermaid = cloudMermaid; // Track as "known"
+      } else {
+        setInitialMermaid(''); // Ensure we clear if empty
       }
 
       // Now stop loading - MindMap will render with initialMermaid
@@ -307,7 +390,8 @@ export default function Home() {
 
       // Subscribe to cloud changes for future updates
       // Detect remote updates by comparing with what we last sent
-      unsubscribe = mc.subscribe('mindmap-mermaid', (value: unknown) => {
+      // Subscribing to the ACTIVE key
+      unsubscribe = mc.subscribe(activeMindmap, (value: unknown) => {
         const mermaidContent = value as string;
 
         // If this is the same as what we just sent, it's an echo - ignore it
@@ -317,19 +401,39 @@ export default function Home() {
         }
 
         // This is a remote update from another client
-        if (mermaidContent && mindMapRef.current && !syncingFromCloud.current) {
+        if (mindMapRef.current && !syncingFromCloud.current) {
           console.log('☁️ Received REMOTE mermaid update from cloud');
           syncingFromCloud.current = true;
           lastSentMermaid = mermaidContent; // Update tracking to prevent re-echo
-          mindMapRef.current.setMermaid(mermaidContent);
+
+          // If null/undefined (maybe deleted?), treat as empty
+          mindMapRef.current.setMermaid(mermaidContent || '');
           setTimeout(() => {
             syncingFromCloud.current = false;
           }, 100);
         }
       });
 
+      // Also subscribe to ALL changes to detect if new mindmaps are added/removed by others
+      // or if the current one is deleted
+      const globalUnsub = mc.subscribeToAll(() => {
+        refreshMindmapList();
+      });
+
+      // Monkey-patch unsubscribe to call globalUnsub too
+      const originalUnsub = unsubscribe;
+      unsubscribe = () => {
+        if (originalUnsub) originalUnsub();
+        if (globalUnsub) globalUnsub();
+      };
+
+
       // Expose lastSentMermaid setter for handleDataChange
       (mc as any)._setLastSent = (val: string) => { lastSentMermaid = val; };
+
+      // Expose refresh for UI components to trigger
+      (mc as any)._refreshMindmaps = refreshMindmapList;
+
     }).catch((error) => {
       console.error('☁️ Cloud connection failed:', error);
       setCloudLoading(false);
@@ -340,7 +444,91 @@ export default function Home() {
       mc.disconnect();
       setCloudConnected(false);
     };
-  }, []);
+  }, [activeMindmap]); // Re-run effect when activeMindmap changes
+
+  const handleCreateMindmap = useCallback(() => {
+    const mc = mindCacheRef.current;
+    if (!mc) return;
+
+    const name = prompt('Enter name for new mindmap:');
+    if (!name) return;
+
+    const key = `mindmap-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+
+    if (mc.has(key)) {
+      alert('Mindmap with this name already exists!');
+      return;
+    }
+
+    // Deactivate current
+    if (activeMindmap) {
+      mc.systemRemoveTag(activeMindmap, TAG_LLM_READ);
+      mc.systemRemoveTag(activeMindmap, TAG_LLM_WRITE);
+    }
+
+    // Create new
+    mc.set_value(key, '', { type: 'document' });
+    mc.addTag(key, TAG_MINDMAP);
+
+    // Activate new
+    mc.systemAddTag(key, TAG_LLM_READ);
+    mc.systemAddTag(key, TAG_LLM_WRITE);
+
+    setActiveMindmap(key);
+    setInitialMermaid(''); // New one is empty
+    setMindmapMenuOpen(false);
+
+    // Refresh list explicitly
+    if ((mc as any)._refreshMindmaps) (mc as any)._refreshMindmaps();
+  }, [activeMindmap]);
+
+  const handleSwitchMindmap = useCallback((key: string) => {
+    if (key === activeMindmap) return;
+
+    const mc = mindCacheRef.current;
+    if (!mc) return;
+
+    // Deactivate current
+    mc.systemRemoveTag(activeMindmap, TAG_LLM_READ);
+    mc.systemRemoveTag(activeMindmap, TAG_LLM_WRITE);
+
+    // Activate new
+    mc.systemAddTag(key, TAG_LLM_READ);
+    mc.systemAddTag(key, TAG_LLM_WRITE);
+
+    setActiveMindmap(key);
+    setMindmapMenuOpen(false);
+  }, [activeMindmap]);
+
+  const handleRemoveMindmap = useCallback((keyToDelete: string) => {
+    const mc = mindCacheRef.current;
+    if (!mc) return;
+
+    if (mindmapKeys.length <= 1) {
+      alert('Cannot delete the last mindmap!');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete "${keyToDelete}"?`)) return;
+
+    // Delete the key
+    mc.delete_key(keyToDelete);
+
+    // If we deleted the active one, switch to another
+    if (keyToDelete === activeMindmap) {
+      const remaining = mindmapKeys.filter(k => k !== keyToDelete);
+      if (remaining.length > 0) {
+        const next = remaining[0];
+        mc.systemAddTag(next, TAG_LLM_READ);
+        mc.systemAddTag(next, TAG_LLM_WRITE);
+        setActiveMindmap(next);
+      }
+    }
+
+    setMindmapMenuOpen(false);
+    // Refresh list explicitly
+    if ((mc as any)._refreshMindmaps) (mc as any)._refreshMindmaps();
+  }, [activeMindmap, mindmapKeys]);
 
   return (
     <main className="mindmap-container">
@@ -355,6 +543,65 @@ export default function Home() {
             </span>
           )}
         </div>
+
+        {/* Mindmap Switcher */}
+        <div className="flex-1 flex justify-center">
+          {cloudConnected && (
+            <div className="relative" ref={mindmapMenuRef}>
+              <button
+                className="px-3 py-1.5 rounded-md hover:bg-white/10 flex items-center gap-2 transition-colors font-medium"
+                onClick={() => setMindmapMenuOpen(!mindmapMenuOpen)}
+              >
+                <span>{activeMindmap}</span>
+                <Icons.ChevronDown />
+              </button>
+
+              {mindmapMenuOpen && (
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-64 bg-[#1e1e28] border border-white/10 rounded-xl shadow-xl overflow-hidden py-1 z-50 flex flex-col">
+                  <div className="px-3 py-2 text-xs font-semibold text-white/40 uppercase tracking-wider">
+                    Switch Mindmap
+                  </div>
+                  <div className="max-h-60 overflow-y-auto">
+                    {mindmapKeys.map(key => (
+                      <div
+                        key={key}
+                        className={`w-full px-4 py-2 text-sm flex items-center justify-between hover:bg-white/5 transition-colors ${key === activeMindmap ? 'text-accent bg-accent/5' : 'text-white/80'}`}
+                      >
+                        <button
+                          onClick={() => handleSwitchMindmap(key)}
+                          className="flex-1 text-left truncate"
+                        >
+                          {key}
+                        </button>
+                        {key === activeMindmap && <span className="text-accent mr-2">✓</span>}
+                        {mindmapKeys.length > 1 && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleRemoveMindmap(key); }}
+                            className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-500/10 transition-colors"
+                            title="Delete this mindmap"
+                          >
+                            <Icons.Trash />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="h-px bg-white/10 my-1"></div>
+
+                  <button
+                    onClick={handleCreateMindmap}
+                    className="w-full text-left px-4 py-2 text-sm flex items-center gap-2 text-white/80 hover:bg-white/5 hover:text-white transition-colors"
+                  >
+                    <Icons.Plus />
+                    <span>New Mindmap</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="header-actions">
           <button className="btn-header" onClick={handleImport} title="Import from Mermaid file">
             <Icons.Upload />
@@ -416,14 +663,16 @@ export default function Home() {
       </div>
 
       {/* Toast notifications */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
-    </main>
+      {
+        toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )
+      }
+    </main >
   );
 }
 
