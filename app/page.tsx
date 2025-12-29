@@ -5,10 +5,12 @@ import dynamic from 'next/dynamic';
 import { MindCache } from 'mindcache';
 import type { MindMapRef } from './components/MindMap';
 import type { MindElixirData } from 'mind-elixir';
+import type { SystemTag } from 'mindcache';
 
-// System tags for LLM permissions
-const TAG_LLM_READ = 'LLMRead';
-const TAG_LLM_WRITE = 'LLMWrite';
+// System tags for LLM permissions (typed from MindCache)
+const TAG_LLM_READ: SystemTag = 'LLMRead';
+const TAG_LLM_WRITE: SystemTag = 'LLMWrite';
+// User tag for mindmap organization
 const TAG_MINDMAP = 'mindmap';
 
 // Dynamic import for MindElixir to avoid SSR issues
@@ -331,6 +333,7 @@ export default function Home() {
     }
 
     const mc = new MindCache({
+      accessLevel: 'admin', // Allow system tag operations
       cloud: {
         instanceId,
         baseUrl: process.env.NEXT_PUBLIC_MINDCACHE_API_URL || 'https://api.mindcache.dev',
@@ -373,10 +376,22 @@ export default function Home() {
             setActiveMindmap(keys[0]);
           }
 
-          // Ensure active mindmap has permissions
-          // Note: We might want to iterate all and ensure ONLY active has permissions, 
-          // but enforcing on active is detailed enough for now.
-          // The switching logic will handle the swap.
+          // Ensure ONLY active mindmap has LLMRead/LLMWrite permissions and 'current' tag
+          const activeKey = keys.includes(currentActive) ? currentActive : keys[0];
+          keys.forEach(key => {
+            // Always remove SystemPrompt from all mindmap keys
+            mc.systemRemoveTag(key, 'SystemPrompt');
+
+            if (key === activeKey) {
+              // Add permissions to active
+              mc.systemAddTag(key, TAG_LLM_READ);
+              mc.systemAddTag(key, TAG_LLM_WRITE);
+            } else {
+              // Remove permissions from inactive
+              mc.systemRemoveTag(key, TAG_LLM_READ);
+              mc.systemRemoveTag(key, TAG_LLM_WRITE);
+            }
+          });
         }
       };
 
