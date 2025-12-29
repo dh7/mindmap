@@ -505,8 +505,9 @@ export default function Home() {
       mc.systemRemoveTag(activeMindmap, TAG_LLM_WRITE);
     }
 
-    // Create new
-    mc.set_value(key, '', { type: 'document' });
+    // Create new - with just a root node named after the mindmap
+    const initialMermaid = `mindmap\n  root(("${name}"))`;
+    mc.set_value(key, initialMermaid, { type: 'document' });
     mc.addTag(key, TAG_MINDMAP);
 
     // Activate new
@@ -514,7 +515,7 @@ export default function Home() {
     mc.systemAddTag(key, TAG_LLM_WRITE);
 
     setActiveMindmap(key);
-    setInitialMermaid(''); // New one is empty
+    setInitialMermaid(initialMermaid); // New one has just the root node
     setMindmapMenuOpen(false);
 
     // Refresh list explicitly
