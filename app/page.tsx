@@ -72,6 +72,11 @@ const Icons = {
       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
   ),
+  Pen: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+    </svg>
+  ),
 };
 
 // Toast notification component
@@ -97,7 +102,13 @@ export default function Home() {
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   // Mindmap management state
-  const [activeMindmap, setActiveMindmap] = useState('mindmap-mermaid'); // Default key
+  // Load last used mindmap from localStorage, fallback to default
+  const [activeMindmap, setActiveMindmap] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('lastActiveMindmap') || 'mindmap-mermaid';
+    }
+    return 'mindmap-mermaid';
+  });
   const activeMindmapRef = useRef(activeMindmap); // Ref for use in callbacks to avoid stale closures
   const [mindmapKeys, setMindmapKeys] = useState<string[]>([]);
   const [mindmapMenuOpen, setMindmapMenuOpen] = useState(false);
@@ -109,6 +120,7 @@ export default function Home() {
   const [initialMermaid, setInitialMermaid] = useState<string | null>(null);
   const mindCacheRef = useRef<MindCache | null>(null);
   const syncingFromCloud = useRef(false);
+  const skipCloudLoadRef = useRef(false); // Skip cloud load after rename
   const cloudConnectedRef = useRef(false);
 
   // Keep ref in sync with state
@@ -116,9 +128,13 @@ export default function Home() {
     cloudConnectedRef.current = cloudConnected;
   }, [cloudConnected]);
 
-  // Keep activeMindmapRef in sync with activeMindmap state
+  // Keep activeMindmapRef in sync with activeMindmap state and persist to localStorage
   useEffect(() => {
     activeMindmapRef.current = activeMindmap;
+    // Persist to localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('lastActiveMindmap', activeMindmap);
+    }
   }, [activeMindmap]);
 
   // Keyboard shortcuts for undo/redo using MindCache
@@ -350,8 +366,10 @@ export default function Home() {
           setActiveMindmap(defaultKey);
         } else {
           setMindmapKeys(keys);
-          // If current active is not in list (shouldn't happen normally but for safety), switch to first
-          if (!keys.includes(activeMindmap) && keys.length > 0) {
+          // Use ref for current value to avoid stale closure
+          const currentActive = activeMindmapRef.current;
+          // If current active is not in list, switch to first
+          if (!keys.includes(currentActive) && keys.length > 0) {
             setActiveMindmap(keys[0]);
           }
 
@@ -376,13 +394,19 @@ export default function Home() {
       }
 
       // Load initial data from cloud and store in state
-      const cloudMermaid = mc.get_value(activeMindmap) as string;
-      if (cloudMermaid) {
-        console.log('☁️ Loading initial mindmap from cloud');
-        setInitialMermaid(cloudMermaid);
-        lastSentMermaid = cloudMermaid; // Track as "known"
+      // Skip if we just renamed (skipCloudLoadRef is set)
+      if (skipCloudLoadRef.current) {
+        console.log('☁️ Skipping cloud load after rename');
+        skipCloudLoadRef.current = false;
       } else {
-        setInitialMermaid(''); // Ensure we clear if empty
+        const cloudMermaid = mc.get_value(activeMindmap) as string;
+        if (cloudMermaid) {
+          console.log('☁️ Loading initial mindmap from cloud');
+          setInitialMermaid(cloudMermaid);
+          lastSentMermaid = cloudMermaid; // Track as "known"
+        } else {
+          setInitialMermaid(''); // Ensure we clear if empty
+        }
       }
 
       // Now stop loading - MindMap will render with initialMermaid
@@ -530,6 +554,45 @@ export default function Home() {
     if ((mc as any)._refreshMindmaps) (mc as any)._refreshMindmaps();
   }, [activeMindmap, mindmapKeys]);
 
+  const handleRenameMindmap = useCallback(() => {
+    const mc = mindCacheRef.current;
+    if (!mc) return;
+    const currentKey = activeMindmap;
+    const currentDisplayName = currentKey.replace(/^mindmap-/, '');
+    const newName = prompt('Enter new name for mindmap:', currentDisplayName);
+    if (!newName || newName === currentDisplayName) return;
+    // Strip any existing mindmap- prefix user might have typed, then add it back
+    const cleanName = newName.replace(/^mindmap-/i, '').toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const newKey = 'mindmap-' + cleanName;
+    if (mc.has(newKey)) { alert('A mindmap with this name already exists!'); return; }
+
+    // Copy content to new key
+    const content = mc.get_value(currentKey);
+    mc.set_value(newKey, content || '', { type: 'document' });
+    mc.addTag(newKey, TAG_MINDMAP);
+    mc.systemAddTag(newKey, TAG_LLM_READ);
+    mc.systemAddTag(newKey, TAG_LLM_WRITE);
+
+    // Remove old key (after new one is ready)
+    mc.systemRemoveTag(currentKey, TAG_LLM_READ);
+    mc.systemRemoveTag(currentKey, TAG_LLM_WRITE);
+    mc.delete_key(currentKey);
+
+    // Update ref immediately to prevent stale closure issues
+    activeMindmapRef.current = newKey;
+
+    // Set flag to skip cloud load when useEffect runs
+    skipCloudLoadRef.current = true;
+
+    // Update initialMermaid to keep current content displayed
+    setInitialMermaid(content as string || '');
+    setActiveMindmap(newKey);
+    setMindmapMenuOpen(false);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((mc as any)._refreshMindmaps) (mc as any)._refreshMindmaps();
+  }, [activeMindmap]);
+
   return (
     <main className="mindmap-container">
       {/* Header */}
@@ -548,21 +611,29 @@ export default function Home() {
         <div className="flex-1 flex justify-center">
           {cloudConnected && (
             <div className="relative" ref={mindmapMenuRef}>
-              <button
-                className="px-3 py-1.5 rounded-md hover:bg-white/10 flex items-center gap-2 transition-colors font-medium"
-                onClick={() => setMindmapMenuOpen(!mindmapMenuOpen)}
-              >
-                <span>{activeMindmap}</span>
-                <Icons.ChevronDown />
-              </button>
-
+              <div className="flex items-center gap-1">
+                <button
+                  className="px-3 py-1.5 rounded-md hover:bg-white/10 flex items-center gap-2 transition-colors font-medium"
+                  onClick={() => setMindmapMenuOpen(!mindmapMenuOpen)}
+                >
+                  <span>{activeMindmap.replace(/^mindmap-/, '')}</span>
+                  <Icons.ChevronDown />
+                </button>
+                <button
+                  className="p-1 rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors"
+                  onClick={handleRenameMindmap}
+                  title="Rename mindmap"
+                >
+                  <Icons.Pen />
+                </button>
+              </div>
               {mindmapMenuOpen && (
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-64 bg-[#1e1e28] border border-white/10 rounded-xl shadow-xl overflow-hidden py-1 z-50 flex flex-col">
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-80 bg-[#1e1e28] border border-white/10 rounded-xl shadow-xl overflow-hidden py-1 z-50 flex flex-col">
                   <div className="px-3 py-2 text-xs font-semibold text-white/40 uppercase tracking-wider">
                     Switch Mindmap
                   </div>
                   <div className="max-h-60 overflow-y-auto">
-                    {mindmapKeys.map(key => (
+                    {[...mindmapKeys].sort((a, b) => a === activeMindmap ? -1 : b === activeMindmap ? 1 : 0).map(key => (
                       <div
                         key={key}
                         className={`w-full px-4 py-2 text-sm flex items-center justify-between hover:bg-white/5 transition-colors ${key === activeMindmap ? 'text-accent bg-accent/5' : 'text-white/80'}`}
@@ -571,13 +642,13 @@ export default function Home() {
                           onClick={() => handleSwitchMindmap(key)}
                           className="flex-1 text-left truncate"
                         >
-                          {key}
+                          {key.replace(/^mindmap-/, '')}
                         </button>
                         {key === activeMindmap && <span className="text-accent mr-2">✓</span>}
                         {mindmapKeys.length > 1 && (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleRemoveMindmap(key); }}
-                            className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-500/10 transition-colors"
+                            className="text-white/40 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-colors"
                             title="Delete this mindmap"
                           >
                             <Icons.Trash />
@@ -655,6 +726,7 @@ export default function Home() {
           </div>
         ) : (
           <MindMap
+            key={activeMindmap}
             ref={mindMapRef}
             initialMermaid={initialMermaid}
             onDataChange={handleDataChange}
