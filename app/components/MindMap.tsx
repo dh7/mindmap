@@ -277,6 +277,12 @@ const defaultData: MindElixirData = {
     },
 };
 
+// Global clipboard to persist copy/cut data across mindmap switches
+// MindElixir stores waitCopy on the instance, which is lost on remount
+// This preserves the data as serialized node objects for cross-mindmap copy/paste
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let globalClipboard: { nodes: any[] | null; isCut: boolean } = { nodes: null, isCut: false };
+
 const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMermaid, onDataChange }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const mindRef = useRef<MindElixirInstance | null>(null);
@@ -588,6 +594,65 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
 
         // Listen for operations
         mind.bus.addListener('operation', handleOperation);
+
+        // Override keyboard handler to use global clipboard for cross-mindmap copy/paste
+        // MindElixir sets container.onkeydown, so we need to wrap it
+        const originalKeyHandler = mind.container.onkeydown;
+        mind.container.onkeydown = (e: KeyboardEvent) => {
+            // Handle copy/cut/paste with global clipboard
+            if ((e.metaKey || e.ctrlKey) && !e.shiftKey) {
+                if (e.key === 'c' && mind.currentNodes && mind.currentNodes.length > 0) {
+                    // Copy: deep clone the node data to prevent reference issues
+                    // Use replacer to exclude 'parent' which creates circular reference
+                    e.preventDefault();
+                    globalClipboard.nodes = mind.currentNodes.map(n =>
+                        JSON.parse(JSON.stringify(n.nodeObj, (key, value) =>
+                            key === 'parent' ? undefined : value
+                        ))
+                    );
+                    globalClipboard.isCut = false;
+                    // Also set on instance for immediate same-mindmap paste
+                    mind.waitCopy = mind.currentNodes;
+                    return;
+                }
+                if (e.key === 'x' && mind.currentNodes && mind.currentNodes.length > 0) {
+                    // Cut: store data, then remove
+                    // Use replacer to exclude 'parent' which creates circular reference
+                    e.preventDefault();
+                    globalClipboard.nodes = mind.currentNodes.map(n =>
+                        JSON.parse(JSON.stringify(n.nodeObj, (key, value) =>
+                            key === 'parent' ? undefined : value
+                        ))
+                    );
+                    globalClipboard.isCut = true;
+                    // Remove the nodes
+                    mind.removeNodes(mind.currentNodes);
+                    return;
+                }
+                if (e.key === 'v' && mind.currentNode && globalClipboard.nodes) {
+                    // Paste from global clipboard
+                    e.preventDefault();
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const regenerateIds = (node: any): any => {
+                        return {
+                            ...node,
+                            id: Math.random().toString(36).substr(2, 9),
+                            children: node.children?.map(regenerateIds) || []
+                        };
+                    };
+                    for (const nodeData of globalClipboard.nodes) {
+                        const newNodeData = regenerateIds(nodeData);
+                        // addChild(el, node) - adds node as child of el
+                        mind.addChild(mind.currentNode, newNodeData);
+                    }
+                    return;
+                }
+            }
+            // Fall through to original handler for everything else
+            if (originalKeyHandler) {
+                originalKeyHandler.call(mind.container, e);
+            }
+        };
 
         // Hook into event bus to capture operation events for direction fix
         const originalFire = mind.bus.fire.bind(mind.bus);
