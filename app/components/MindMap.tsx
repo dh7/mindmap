@@ -277,12 +277,6 @@ const defaultData: MindElixirData = {
     },
 };
 
-// Global clipboard to persist copy/cut data across mindmap switches
-// MindElixir stores waitCopy on the instance, which is lost on remount
-// This preserves the data as serialized node objects for cross-mindmap copy/paste
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let globalClipboard: { nodes: any[] | null; isCut: boolean } = { nodes: null, isCut: false };
-
 const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMermaid, onDataChange }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const mindRef = useRef<MindElixirInstance | null>(null);
@@ -595,56 +589,71 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
         // Listen for operations
         mind.bus.addListener('operation', handleOperation);
 
-        // Override keyboard handler to use global clipboard for cross-mindmap copy/paste
+        // Override keyboard handler to use system clipboard for cross-mindmap copy/paste
         // MindElixir sets container.onkeydown, so we need to wrap it
         const originalKeyHandler = mind.container.onkeydown;
         mind.container.onkeydown = (e: KeyboardEvent) => {
-            // Handle copy/cut/paste with global clipboard
+            // Handle copy/cut/paste with system clipboard
             if ((e.metaKey || e.ctrlKey) && !e.shiftKey) {
                 if (e.key === 'c' && mind.currentNodes && mind.currentNodes.length > 0) {
-                    // Copy: deep clone the node data to prevent reference issues
-                    // Use replacer to exclude 'parent' which creates circular reference
+                    // Copy: write node data to system clipboard as JSON
                     e.preventDefault();
-                    globalClipboard.nodes = mind.currentNodes.map(n =>
+                    const nodes = mind.currentNodes.map(n =>
                         JSON.parse(JSON.stringify(n.nodeObj, (key, value) =>
                             key === 'parent' ? undefined : value
                         ))
                     );
-                    globalClipboard.isCut = false;
+                    const clipboardData = { type: 'mindmap-nodes', nodes, isCut: false };
+                    navigator.clipboard.writeText(JSON.stringify(clipboardData)).catch(err => {
+                        console.error('Failed to copy to clipboard:', err);
+                    });
                     // Also set on instance for immediate same-mindmap paste
                     mind.waitCopy = mind.currentNodes;
                     return;
                 }
                 if (e.key === 'x' && mind.currentNodes && mind.currentNodes.length > 0) {
-                    // Cut: store data, then remove
-                    // Use replacer to exclude 'parent' which creates circular reference
+                    // Cut: write to clipboard then remove
                     e.preventDefault();
-                    globalClipboard.nodes = mind.currentNodes.map(n =>
+                    const nodes = mind.currentNodes.map(n =>
                         JSON.parse(JSON.stringify(n.nodeObj, (key, value) =>
                             key === 'parent' ? undefined : value
                         ))
                     );
-                    globalClipboard.isCut = true;
-                    // Remove the nodes
-                    mind.removeNodes(mind.currentNodes);
+                    const clipboardData = { type: 'mindmap-nodes', nodes, isCut: true };
+                    navigator.clipboard.writeText(JSON.stringify(clipboardData)).then(() => {
+                        mind.removeNodes(mind.currentNodes);
+                    }).catch(err => {
+                        console.error('Failed to cut to clipboard:', err);
+                    });
                     return;
                 }
-                if (e.key === 'v' && mind.currentNode && globalClipboard.nodes) {
-                    // Paste from global clipboard
+                if (e.key === 'v' && mind.currentNode) {
+                    // Paste from system clipboard
                     e.preventDefault();
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const regenerateIds = (node: any): any => {
-                        return {
-                            ...node,
-                            id: Math.random().toString(36).substr(2, 9),
-                            children: node.children?.map(regenerateIds) || []
-                        };
-                    };
-                    for (const nodeData of globalClipboard.nodes) {
-                        const newNodeData = regenerateIds(nodeData);
-                        // addChild(el, node) - adds node as child of el
-                        mind.addChild(mind.currentNode, newNodeData);
-                    }
+                    navigator.clipboard.readText().then(text => {
+                        try {
+                            const clipboardData = JSON.parse(text);
+                            if (clipboardData.type !== 'mindmap-nodes' || !clipboardData.nodes) {
+                                return; // Not our data format
+                            }
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const regenerateIds = (node: any): any => ({
+                                ...node,
+                                id: Math.random().toString(36).substr(2, 9),
+                                children: node.children?.map(regenerateIds) || []
+                            });
+                            for (const nodeData of clipboardData.nodes) {
+                                const newNodeData = regenerateIds(nodeData);
+                                if (mind.currentNode) {
+                                    mind.addChild(mind.currentNode, newNodeData);
+                                }
+                            }
+                        } catch {
+                            // Not JSON or wrong format - ignore
+                        }
+                    }).catch(err => {
+                        console.error('Failed to read clipboard:', err);
+                    });
                     return;
                 }
             }
