@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { MindCache } from 'mindcache';
+import { MindCache, OAuthClient } from 'mindcache';
 import type { MindMapRef } from './components/MindMap';
 import type { MindElixirData } from 'mind-elixir';
 import type { SystemTag } from 'mindcache';
@@ -12,6 +12,16 @@ const TAG_LLM_READ: SystemTag = 'LLMRead';
 const TAG_LLM_WRITE: SystemTag = 'LLMWrite';
 // User tag for mindmap organization
 const TAG_MINDMAP = 'mindmap';
+
+// OAuth configuration
+const CLIENT_ID = process.env.NEXT_PUBLIC_MINDCACHE_APP_ID || '';
+const oauth = new OAuthClient({
+  clientId: CLIENT_ID,
+  authUrl: process.env.NEXT_PUBLIC_MINDCACHE_AUTH_URL || 'https://api.mindcache.dev/oauth/authorize',
+  tokenUrl: process.env.NEXT_PUBLIC_MINDCACHE_TOKEN_URL || 'https://api.mindcache.dev/oauth/token',
+  redirectUri: process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI || 'http://localhost:3001',
+  scopes: ['read', 'write']
+});
 
 // Dynamic import for MindElixir to avoid SSR issues
 const MindMap = dynamic(() => import('./components/MindMap'), {
@@ -79,6 +89,13 @@ const Icons = {
       <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
     </svg>
   ),
+  Logout: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  ),
 };
 
 // Toast notification component
@@ -124,11 +141,20 @@ export default function Home() {
   const syncingFromCloud = useRef(false);
   const skipCloudLoadRef = useRef(false); // Skip cloud load after rename
   const cloudConnectedRef = useRef(false);
+  const mindmapKeysRef = useRef<string[]>([]);
 
-  // Keep ref in sync with state
+  // OAuth authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Keep refs in sync with state
   useEffect(() => {
     cloudConnectedRef.current = cloudConnected;
   }, [cloudConnected]);
+
+  useEffect(() => {
+    mindmapKeysRef.current = mindmapKeys;
+  }, [mindmapKeys]);
 
   // Keep activeMindmapRef in sync with activeMindmap state and persist to localStorage
   useEffect(() => {
@@ -138,6 +164,49 @@ export default function Home() {
       localStorage.setItem('lastActiveMindmap', activeMindmap);
     }
   }, [activeMindmap]);
+
+  // OAuth initialization - handle callback and check auth state
+  useEffect(() => {
+    async function initAuth() {
+      try {
+        // Handle OAuth callback if code is present in URL
+        if (window.location.search.includes('code=')) {
+          console.log('🔐 Handling OAuth callback...');
+          console.log('🔐 Token URL:', process.env.NEXT_PUBLIC_MINDCACHE_TOKEN_URL || 'https://api.mindcache.dev/oauth/token');
+          await oauth.handleCallback();
+          console.log('🔐 OAuth callback handled');
+          console.log('🔐 isAuthenticated:', oauth.isAuthenticated());
+          console.log('🔐 instanceId:', oauth.getInstanceId());
+          // Clean URL after handling callback
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+
+        // Check if user is authenticated
+        const isAuth = oauth.isAuthenticated();
+        console.log('🔐 Auth check - isAuthenticated:', isAuth, 'instanceId:', oauth.getInstanceId());
+        setIsAuthenticated(isAuth);
+      } catch (error) {
+        console.error('OAuth initialization failed:', error);
+        // Log more details about the error
+        if (error instanceof Error) {
+          console.error('Error name:', error.name);
+          console.error('Error message:', error.message);
+
+          // Handle invalid state parameter - this usually means a stale callback URL
+          // Clear the URL and let user try again
+          if (error.message.includes('Invalid state')) {
+            console.log('🔐 Clearing stale OAuth callback URL');
+            window.history.replaceState({}, '', window.location.pathname);
+            // Show login screen
+            setIsAuthenticated(false);
+          }
+        }
+      } finally {
+        setAuthLoading(false);
+      }
+    }
+    initAuth();
+  }, []);
 
   // Keyboard shortcuts for undo/redo using MindCache
   useEffect(() => {
@@ -216,7 +285,6 @@ export default function Home() {
   const handleDataChange = useCallback((_data: MindElixirData) => {
     // Don't sync if we're currently applying a remote update
     if (syncingFromCloud.current) {
-      console.log('☁️ Skipping sync - currently applying remote update');
       return;
     }
 
@@ -230,7 +298,6 @@ export default function Home() {
       }
 
       mc.set_value(activeMindmapRef.current, mermaid);
-      console.log('☁️ Synced to cloud');
     }
   }, [activeMindmap]);
 
@@ -323,23 +390,31 @@ export default function Home() {
     }
   }, [showToast]);
 
-  // Cloud auto-connect and sync
+  // Cloud auto-connect and sync (only when authenticated)
   useEffect(() => {
-    const instanceId = process.env.NEXT_PUBLIC_INSTANCE_MINDMAP;
-    if (!instanceId) {
-      console.log('No NEXT_PUBLIC_INSTANCE_MINDMAP configured, cloud sync disabled');
+    // Skip if not authenticated or still loading auth
+    if (!isAuthenticated || authLoading) {
       setCloudLoading(false);
       return;
     }
 
+    const instanceId = oauth.getInstanceId();
+    if (!instanceId) {
+      console.log('No instance ID from OAuth, cloud sync disabled');
+      setCloudLoading(false);
+      return;
+    }
+
+    console.log('☁️ Creating MindCache with cloud config, instanceId:', instanceId);
     const mc = new MindCache({
       accessLevel: 'admin', // Allow system tag operations
       cloud: {
         instanceId,
-        baseUrl: process.env.NEXT_PUBLIC_MINDCACHE_API_URL || 'https://api.mindcache.dev',
-        tokenEndpoint: '/api/ws-token'
+        baseUrl: process.env.NEXT_PUBLIC_MINDCACHE_API_URL || 'wss://api.mindcache.dev',
+        tokenProvider: oauth.tokenProvider
       }
     });
+    console.log('☁️ MindCache instance created');
 
     mindCacheRef.current = mc;
     let unsubscribe: (() => void) | null = null;
@@ -347,52 +422,73 @@ export default function Home() {
     let lastSentMermaid: string | null = null;
 
     // Connect and subscribe
+    console.log('☁️ Waiting for sync...');
     mc.waitForSync().then(() => {
+      console.log('☁️ waitForSync resolved!');
       setCloudConnected(true);
       console.log('☁️ Connected to MindCache cloud');
 
-      // Refresh function to update list of mindmaps
+      // Refresh function to update list of mindmaps (debounced)
+      let refreshTimeout: NodeJS.Timeout;
       const refreshMindmapList = () => {
-        const keys = mc.getKeysByTag(TAG_MINDMAP);
-        if (keys.length === 0) {
-          // No mindmaps found, create default
-          console.log('☁️ Creating default mindmap');
-          const defaultKey = 'mindmap-mermaid';
-          mc.set_value(defaultKey, '', { type: 'document' });
-          mc.addTag(defaultKey, TAG_MINDMAP);
+        clearTimeout(refreshTimeout);
+        refreshTimeout = setTimeout(() => {
+          const keys = mc.getKeysByTag(TAG_MINDMAP);
 
-          // Set permissions for default
-          mc.systemAddTag(defaultKey, TAG_LLM_READ);
-          mc.systemAddTag(defaultKey, TAG_LLM_WRITE);
+          // Use ref for current state to avoid stale closure
+          const currentKeys = mindmapKeysRef.current;
 
-          setMindmapKeys([defaultKey]);
-          setActiveMindmap(defaultKey);
-        } else {
-          setMindmapKeys(keys);
-          // Use ref for current value to avoid stale closure
-          const currentActive = activeMindmapRef.current;
-          // If current active is not in list, switch to first
-          if (!keys.includes(currentActive) && keys.length > 0) {
-            setActiveMindmap(keys[0]);
+          // Simple array equality check to avoid unnecessary state updates
+          const keysChanged = keys.length !== currentKeys.length || !keys.every((k, i) => k === currentKeys[i]);
+
+          if (!keysChanged) {
+            // Even if keys didn't change, we might need to verify permissions/tags are correct
+            // but let's skip for now to avoid loops
+            return;
           }
 
-          // Ensure ONLY active mindmap has LLMRead/LLMWrite permissions and 'current' tag
-          const activeKey = keys.includes(currentActive) ? currentActive : keys[0];
-          keys.forEach(key => {
-            // Always remove SystemPrompt from all mindmap keys
-            mc.systemRemoveTag(key, 'SystemPrompt');
+          if (keys.length === 0) {
+            // No mindmaps found, create default
+            console.log('☁️ Creating default mindmap');
+            const defaultKey = 'mindmap-mermaid';
+            mc.set_value(defaultKey, '', { type: 'document' });
+            mc.addTag(defaultKey, TAG_MINDMAP);
 
-            if (key === activeKey) {
-              // Add permissions to active
-              mc.systemAddTag(key, TAG_LLM_READ);
-              mc.systemAddTag(key, TAG_LLM_WRITE);
-            } else {
-              // Remove permissions from inactive
-              mc.systemRemoveTag(key, TAG_LLM_READ);
-              mc.systemRemoveTag(key, TAG_LLM_WRITE);
+            // Set permissions for default
+            mc.systemAddTag(defaultKey, TAG_LLM_READ);
+            mc.systemAddTag(defaultKey, TAG_LLM_WRITE);
+
+            setMindmapKeys([defaultKey]);
+            setActiveMindmap(defaultKey);
+          } else {
+            setMindmapKeys(keys);
+
+            // Use ref for current active value
+            const currentActive = activeMindmapRef.current;
+
+            // If current active is not in list (and list not empty), switch to first
+            if (!keys.includes(currentActive) && keys.length > 0) {
+              setActiveMindmap(keys[0]);
             }
-          });
-        }
+
+            // Update permissions
+            const activeKey = keys.includes(currentActive) ? currentActive : keys[0];
+            keys.forEach(key => {
+              // Always remove SystemPrompt from all mindmap keys
+              mc.systemRemoveTag(key, 'SystemPrompt');
+
+              if (key === activeKey) {
+                // Add permissions to active
+                mc.systemAddTag(key, TAG_LLM_READ);
+                mc.systemAddTag(key, TAG_LLM_WRITE);
+              } else {
+                // Remove permissions from inactive
+                mc.systemRemoveTag(key, TAG_LLM_READ);
+                mc.systemRemoveTag(key, TAG_LLM_WRITE);
+              }
+            });
+          }
+        }, 500);
       };
 
       // Initial list load
@@ -435,13 +531,11 @@ export default function Home() {
 
         // If this is the same as what we just sent, it's an echo - ignore it
         if (mermaidContent === lastSentMermaid) {
-          console.log('☁️ Ignoring echo of our own update');
           return;
         }
 
         // This is a remote update from another client
         if (mindMapRef.current && !syncingFromCloud.current) {
-          console.log('☁️ Received REMOTE mermaid update from cloud');
           syncingFromCloud.current = true;
           lastSentMermaid = mermaidContent; // Update tracking to prevent re-echo
 
@@ -483,7 +577,7 @@ export default function Home() {
       mc.disconnect();
       setCloudConnected(false);
     };
-  }, [activeMindmap]); // Re-run effect when activeMindmap changes
+  }, [activeMindmap, isAuthenticated, authLoading]); // Re-run effect when activeMindmap or auth changes
 
   const handleCreateMindmap = useCallback(() => {
     const mc = mindCacheRef.current;
@@ -609,6 +703,52 @@ export default function Home() {
     if ((mc as any)._refreshMindmaps) (mc as any)._refreshMindmaps();
   }, [activeMindmap]);
 
+  // Handle logout
+  const handleLogout = useCallback(async () => {
+    await oauth.logout();
+    setIsAuthenticated(false);
+    setCloudConnected(false);
+    mindCacheRef.current = null;
+  }, []);
+
+  // Show loading screen while checking auth state
+  if (authLoading) {
+    return (
+      <main className="mindmap-container flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="opacity-60">Loading...</p>
+        </div>
+      </main>
+    );
+  }
+
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <main className="mindmap-container flex items-center justify-center">
+        <div className="text-center">
+          <div className="mb-8">
+            <Icons.Brain />
+            <h1 className="text-3xl font-bold mt-4">MindMap</h1>
+            <p className="opacity-60 mt-2">Visualize your ideas with cloud sync</p>
+          </div>
+          <button
+            onClick={() => oauth.authorize()}
+            className="px-6 py-3 bg-accent hover:bg-accent/90 rounded-xl font-medium transition-colors flex items-center gap-3 mx-auto"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+              <polyline points="10 17 15 12 10 7" />
+              <line x1="15" y1="12" x2="3" y2="12" />
+            </svg>
+            Sign in with MindCache
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="mindmap-container">
       {/* Header */}
@@ -723,6 +863,15 @@ export default function Home() {
               </div>
             )}
           </div>
+
+          {/* Logout button */}
+          <button
+            className="btn-header text-white/60 hover:text-white"
+            onClick={handleLogout}
+            title="Sign out"
+          >
+            <Icons.Logout />
+          </button>
         </div>
         <input
           ref={mermaidInputRef}

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -11,7 +11,7 @@
   "dependencies": {
     "@zumer/snapdom": "^2.0.1",
     "mind-elixir": "^5.3.7",
-    "mindcache": "^3.4.4",
+    "mindcache": "file:/Users/dh/code/open-source/mindcache/packages/mindcache",
     "next": "16.0.10",
     "react": "19.2.1",
     "react-dom": "19.2.1"

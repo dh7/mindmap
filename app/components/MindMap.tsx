@@ -336,41 +336,46 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
         setMermaid: (mermaid: string) => {
             if (!mindRef.current) return;
 
-            // Save current expanded states
+            // Save current expanded states using path-based identification
+            // This is more robust than ID (which changes on sync) or just Topic (which isn't unique)
             const currentData = mindRef.current.getData();
             const expandedStates: Record<string, boolean> = {};
-            const saveExpandedStates = (node: any) => {
-                if (node.id && node.expanded !== undefined) {
-                    expandedStates[node.id] = node.expanded;
+
+            const saveExpandedStates = (node: any, path: string) => {
+                const currentPath = path ? `${path}/${node.topic}` : node.topic;
+
+                // Save by path
+                if (currentPath) {
+                    expandedStates[currentPath] = node.expanded ?? true;
                 }
-                // Also save by topic as fallback (IDs might differ)
-                if (node.topic) {
-                    expandedStates[`topic:${node.topic}`] = node.expanded ?? true;
-                }
+
                 if (node.children) {
-                    node.children.forEach(saveExpandedStates);
+                    node.children.forEach((child: any) => saveExpandedStates(child, currentPath));
                 }
             };
+
             if (currentData.nodeData) {
-                saveExpandedStates(currentData.nodeData);
+                saveExpandedStates(currentData.nodeData, '');
             }
 
             // Convert new mermaid to data
             const newData = mermaidToData(mermaid);
 
             // Restore expanded states to new data
-            const restoreExpandedStates = (node: any) => {
-                if (node.id && expandedStates[node.id] !== undefined) {
-                    node.expanded = expandedStates[node.id];
-                } else if (node.topic && expandedStates[`topic:${node.topic}`] !== undefined) {
-                    node.expanded = expandedStates[`topic:${node.topic}`];
+            const restoreExpandedStates = (node: any, path: string) => {
+                const currentPath = path ? `${path}/${node.topic}` : node.topic;
+
+                if (currentPath && expandedStates[currentPath] !== undefined) {
+                    node.expanded = expandedStates[currentPath];
                 }
+
                 if (node.children) {
-                    node.children.forEach(restoreExpandedStates);
+                    node.children.forEach((child: any) => restoreExpandedStates(child, currentPath));
                 }
             };
+
             if (newData.nodeData) {
-                restoreExpandedStates(newData.nodeData);
+                restoreExpandedStates(newData.nodeData, '');
             }
 
             // Normalize to ensure all nodes have required properties (expanded, children)
@@ -589,6 +594,17 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
         // Listen for operations
         mind.bus.addListener('operation', handleOperation);
 
+        // Hook into event bus to capture operation events for direction fix
+        const originalFire = mind.bus.fire.bind(mind.bus);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mind.bus as any).fire = (event: string, ...args: unknown[]) => {
+            if (event === 'operation') {
+                handleOperation();
+            }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return (originalFire as any)(event, ...args);
+        };
+
         // Override keyboard handler to use system clipboard for cross-mindmap copy/paste
         // MindElixir sets container.onkeydown, so we need to wrap it
         const originalKeyHandler = mind.container.onkeydown;
@@ -627,35 +643,8 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
                     });
                     return;
                 }
-                if (e.key === 'v' && mind.currentNode) {
-                    // Paste from system clipboard
-                    e.preventDefault();
-                    navigator.clipboard.readText().then(text => {
-                        try {
-                            const clipboardData = JSON.parse(text);
-                            if (clipboardData.type !== 'mindmap-nodes' || !clipboardData.nodes) {
-                                return; // Not our data format
-                            }
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            const regenerateIds = (node: any): any => ({
-                                ...node,
-                                id: Math.random().toString(36).substr(2, 9),
-                                children: node.children?.map(regenerateIds) || []
-                            });
-                            for (const nodeData of clipboardData.nodes) {
-                                const newNodeData = regenerateIds(nodeData);
-                                if (mind.currentNode) {
-                                    mind.addChild(mind.currentNode, newNodeData);
-                                }
-                            }
-                        } catch {
-                            // Not JSON or wrong format - ignore
-                        }
-                    }).catch(err => {
-                        console.error('Failed to read clipboard:', err);
-                    });
-                    return;
-                }
+                // Paste: let MindElixir handle it (clipboard API was unreliable)
+                // Copy and cut still use system clipboard for cross-mindmap support
             }
             // Fall through to original handler for everything else
             if (originalKeyHandler) {
@@ -663,16 +652,8 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
             }
         };
 
-        // Hook into event bus to capture operation events for direction fix
-        const originalFire = mind.bus.fire.bind(mind.bus);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (mind.bus as any).fire = (event: string, ...args: unknown[]) => {
-            if (event === 'operation') {
-                handleOperation();
-            }
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            return (originalFire as any)(event, ...args);
-        };
+        // Note: We listen to 'operation' event via bus.addListener above (line ~590)
+        // The bus.fire hook was causing duplicate handleOperation calls - removed to fix sync loop
 
         setIsReady(true);
 
