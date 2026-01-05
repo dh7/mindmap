@@ -89,6 +89,79 @@ function dataToMermaid(data: MindElixirData): string {
     return lines.join('\n');
 }
 
+// Helper to extract content, direction, and unescape from mermaid node text
+function extractContent(text: string): { topic: string, direction?: 0 | 1 } {
+    let trimmed = text.trim();
+
+    // Check for bare quoted string first: "..."
+    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+        let content = trimmed.substring(1, trimmed.length - 1);
+
+        // Check for [R] or [L] prefix inside the quoted text
+        let direction: 0 | 1 | undefined = undefined;
+        if (content.startsWith('[R] ')) {
+            direction = 1;
+            content = content.substring(4);
+        } else if (content.startsWith('[L] ')) {
+            direction = 0;
+            content = content.substring(4);
+        }
+
+        // Unescape
+        content = content.replace(/#quot;/g, '"')
+            .replace(/&quot;/g, '"')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&');
+
+        return { topic: content, direction };
+    }
+
+    // Handle delimited formats: root((...)), [...], etc.
+    const delimiters = [
+        { open: '((', close: '))' },
+        { open: '[[', close: ']]' },
+        { open: '{{', close: '}}' },
+        { open: '[', close: ']' },
+        { open: '(', close: ')' },
+        { open: '{', close: '}' }
+    ];
+
+    let content = trimmed;
+
+    for (const { open, close } of delimiters) {
+        const openIdx = trimmed.indexOf(open);
+        if (openIdx !== -1 && trimmed.endsWith(close)) {
+            content = trimmed.substring(openIdx + open.length, trimmed.length - close.length);
+            break;
+        }
+    }
+
+    // Remove surrounding quotes if present
+    if (content.length >= 2 && content.startsWith('"') && content.endsWith('"')) {
+        content = content.substring(1, content.length - 1);
+    }
+
+    // Check for [R]/[L] prefix
+    let direction: 0 | 1 | undefined = undefined;
+    if (content.startsWith('[R] ')) {
+        direction = 1;
+        content = content.substring(4);
+    } else if (content.startsWith('[L] ')) {
+        direction = 0;
+        content = content.substring(4);
+    }
+
+    // Unescape entities
+    content = content.replace(/#quot;/g, '"')
+        .replace(/&quot;/g, '"')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');
+
+    return { topic: content, direction };
+}
+
 // Convert Mermaid format to MindElixir data
 // Handles [R]/[L] direction prefixes inside quoted text
 function mermaidToData(mermaid: string): MindElixirData {
@@ -101,79 +174,6 @@ function mermaidToData(mermaid: string): MindElixirData {
     }
 
     if (startIdx >= lines.length) return { nodeData: { id: 'root', topic: 'Root', expanded: true, children: [] } };
-
-    // Helper to extract content, direction, and unescape
-    function extractContent(text: string): { topic: string, direction?: 0 | 1 } {
-        let trimmed = text.trim();
-
-        // Check for bare quoted string first: "..."
-        if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-            let content = trimmed.substring(1, trimmed.length - 1);
-
-            // Check for [R] or [L] prefix inside the quoted text
-            let direction: 0 | 1 | undefined = undefined;
-            if (content.startsWith('[R] ')) {
-                direction = 1;
-                content = content.substring(4);
-            } else if (content.startsWith('[L] ')) {
-                direction = 0;
-                content = content.substring(4);
-            }
-
-            // Unescape
-            content = content.replace(/#quot;/g, '"')
-                .replace(/&quot;/g, '"')
-                .replace(/&lt;/g, '<')
-                .replace(/&gt;/g, '>')
-                .replace(/&amp;/g, '&');
-
-            return { topic: content, direction };
-        }
-
-        // Handle delimited formats: root((...)), [...], etc.
-        const delimiters = [
-            { open: '((', close: '))' },
-            { open: '[[', close: ']]' },
-            { open: '{{', close: '}}' },
-            { open: '[', close: ']' },
-            { open: '(', close: ')' },
-            { open: '{', close: '}' }
-        ];
-
-        let content = trimmed;
-
-        for (const { open, close } of delimiters) {
-            const openIdx = trimmed.indexOf(open);
-            if (openIdx !== -1 && trimmed.endsWith(close)) {
-                content = trimmed.substring(openIdx + open.length, trimmed.length - close.length);
-                break;
-            }
-        }
-
-        // Remove surrounding quotes if present
-        if (content.length >= 2 && content.startsWith('"') && content.endsWith('"')) {
-            content = content.substring(1, content.length - 1);
-        }
-
-        // Check for [R]/[L] prefix
-        let direction: 0 | 1 | undefined = undefined;
-        if (content.startsWith('[R] ')) {
-            direction = 1;
-            content = content.substring(4);
-        } else if (content.startsWith('[L] ')) {
-            direction = 0;
-            content = content.substring(4);
-        }
-
-        // Unescape entities
-        content = content.replace(/#quot;/g, '"')
-            .replace(/&quot;/g, '"')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&amp;/g, '&');
-
-        return { topic: content, direction };
-    }
 
     function getIndent(line: string): number {
         const match = line.match(/^(\s*)/);
@@ -606,21 +606,42 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
         };
 
         // Override keyboard handler to use system clipboard for cross-mindmap copy/paste
-        // MindElixir sets container.onkeydown, so we need to wrap it
+        // Uses mermaid format for human-readable clipboard content
         const originalKeyHandler = mind.container.onkeydown;
         mind.container.onkeydown = (e: KeyboardEvent) => {
-            // Handle copy/cut/paste with system clipboard
+            // Handle copy/cut/paste with system clipboard using mermaid format
             if ((e.metaKey || e.ctrlKey) && !e.shiftKey) {
                 if (e.key === 'c' && mind.currentNodes && mind.currentNodes.length > 0) {
-                    // Copy: write node data to system clipboard as JSON
+                    // Copy: convert selected nodes to mermaid format and write to clipboard
                     e.preventDefault();
-                    const nodes = mind.currentNodes.map(n =>
-                        JSON.parse(JSON.stringify(n.nodeObj, (key, value) =>
-                            key === 'parent' ? undefined : value
-                        ))
-                    );
-                    const clipboardData = { type: 'mindmap-nodes', nodes, isCut: false };
-                    navigator.clipboard.writeText(JSON.stringify(clipboardData)).catch(err => {
+
+                    // Convert each selected node tree to mermaid format
+                    const mermaidParts: string[] = [];
+                    for (const nodeWrapper of mind.currentNodes) {
+                        const node = nodeWrapper.nodeObj;
+                        const nodeData: MindElixirData = { nodeData: node as NodeData };
+                        // Get mermaid without the 'mindmap' header and root wrapper
+                        const fullMermaid = dataToMermaid(nodeData);
+                        // Remove the 'mindmap' line and adjust indentation
+                        const lines = fullMermaid.split('\n').slice(1); // Remove 'mindmap'
+                        // The first line is root((topic)), convert to just the topic
+                        if (lines.length > 0) {
+                            const rootLine = lines[0];
+                            const { topic } = extractContent(rootLine);
+                            // Rebuild with proper indentation (no root wrapper)
+                            const adjustedLines = [`"${topic}"`];
+                            for (let i = 1; i < lines.length; i++) {
+                                // Reduce indentation by 2 spaces
+                                adjustedLines.push(lines[i].substring(2));
+                            }
+                            mermaidParts.push(adjustedLines.join('\n'));
+                        }
+                    }
+
+                    const clipboardText = mermaidParts.join('\n');
+                    navigator.clipboard.writeText(clipboardText).then(() => {
+                        console.log('📋 Copied to clipboard (mermaid format):\n' + clipboardText);
+                    }).catch(err => {
                         console.error('Failed to copy to clipboard:', err);
                     });
                     // Also set on instance for immediate same-mindmap paste
@@ -628,23 +649,76 @@ const MindMap = forwardRef<MindMapRef, MindMapProps>(({ initialData, initialMerm
                     return;
                 }
                 if (e.key === 'x' && mind.currentNodes && mind.currentNodes.length > 0) {
-                    // Cut: write to clipboard then remove
+                    // Cut: same as copy but also remove nodes
                     e.preventDefault();
-                    const nodes = mind.currentNodes.map(n =>
-                        JSON.parse(JSON.stringify(n.nodeObj, (key, value) =>
-                            key === 'parent' ? undefined : value
-                        ))
-                    );
-                    const clipboardData = { type: 'mindmap-nodes', nodes, isCut: true };
-                    navigator.clipboard.writeText(JSON.stringify(clipboardData)).then(() => {
+
+                    const mermaidParts: string[] = [];
+                    for (const nodeWrapper of mind.currentNodes) {
+                        const node = nodeWrapper.nodeObj;
+                        const nodeData: MindElixirData = { nodeData: node as NodeData };
+                        const fullMermaid = dataToMermaid(nodeData);
+                        const lines = fullMermaid.split('\n').slice(1);
+                        if (lines.length > 0) {
+                            const rootLine = lines[0];
+                            const { topic } = extractContent(rootLine);
+                            const adjustedLines = [`"${topic}"`];
+                            for (let i = 1; i < lines.length; i++) {
+                                adjustedLines.push(lines[i].substring(2));
+                            }
+                            mermaidParts.push(adjustedLines.join('\n'));
+                        }
+                    }
+
+                    const clipboardText = mermaidParts.join('\n');
+                    navigator.clipboard.writeText(clipboardText).then(() => {
+                        console.log('📋 Cut to clipboard (mermaid format):\n' + clipboardText);
                         mind.removeNodes(mind.currentNodes);
                     }).catch(err => {
                         console.error('Failed to cut to clipboard:', err);
                     });
                     return;
                 }
-                // Paste: let MindElixir handle it (clipboard API was unreliable)
-                // Copy and cut still use system clipboard for cross-mindmap support
+                if (e.key === 'v' && mind.currentNode) {
+                    // Paste: read from system clipboard and convert from mermaid
+                    e.preventDefault();
+
+                    navigator.clipboard.readText().then(text => {
+                        if (!text.trim()) return;
+
+                        console.log('📋 Pasting from clipboard:\n' + text);
+
+                        // Try to parse as mermaid format
+                        // Wrap in mindmap + root structure for parsing
+                        const wrappedMermaid = `mindmap\n  root(("temp"))\n${text.split('\n').map(l => '    ' + l).join('\n')}`;
+                        const parsed = mermaidToData(wrappedMermaid);
+
+                        // Get the children of the temp root - these are our pasted nodes
+                        const tempRoot = parsed.nodeData as NodeData;
+                        if (tempRoot.children && tempRoot.children.length > 0) {
+                            // Add each child under the current node
+                            for (const child of tempRoot.children) {
+                                // Generate new IDs and ensure all required properties exist
+                                const regenerateIds = (node: NodeData): NodeData => ({
+                                    ...node,
+                                    id: Math.random().toString(36).substr(2, 9),
+                                    expanded: node.expanded ?? true,
+                                    children: (node.children || []).map(regenerateIds)
+                                });
+                                const newNode = regenerateIds(child);
+                                if (mind.currentNode) {
+                                    mind.addChild(mind.currentNode, newNode);
+                                }
+                            }
+                        }
+                    }).catch(err => {
+                        console.error('Failed to read from clipboard:', err);
+                        // Fall back to MindElixir's internal paste
+                        if (originalKeyHandler) {
+                            originalKeyHandler.call(mind.container, e);
+                        }
+                    });
+                    return;
+                }
             }
             // Fall through to original handler for everything else
             if (originalKeyHandler) {
