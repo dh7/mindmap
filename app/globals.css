@@ -2,16 +2,28 @@
 @import "mind-elixir/style.css";
 
 :root {
-  --background: #0f172a;
+  /* The 3 allowed grey tones */
+  --grey-dark: #121212;
+  /* Main background */
+  --grey-panel: #2f3130;
+  /* Panels, headers, menus (User preferred) */
+  --grey-light: #3f4140;
+  /* Hover states, inputs */
+
+  --background: var(--grey-dark);
   --foreground: #e2e8f0;
   --primary: #6366f1;
   --primary-light: #818cf8;
   --primary-dark: #4f46e5;
-  --secondary: #1e293b;
+  --secondary: var(--grey-panel);
   --accent: #10b981;
   --border: rgba(255, 255, 255, 0.1);
-  --glass: rgba(255, 255, 255, 0.05);
+  --glass: var(--grey-panel);
   --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+.bg-panel {
+  background-color: var(--grey-panel);
 }
 
 @theme inline {
@@ -37,9 +49,9 @@ body {
 
 /* Glass morphism button */
 .btn-glass {
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(12px);
+  background: var(--grey-panel);
+  border: 1px solid var(--border);
+  backdrop-filter: none;
   border-radius: 12px;
   padding: 0.75rem 1.25rem;
   color: var(--foreground);
@@ -53,10 +65,9 @@ body {
 }
 
 .btn-glass:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--grey-light);
   border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .btn-glass:active {
@@ -101,9 +112,9 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 1.5rem;
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--glass-border);
+  background: var(--grey-panel);
+  backdrop-filter: none;
+  border-bottom: 1px solid var(--border);
   z-index: 1000;
 }
 
@@ -113,12 +124,10 @@ body {
   gap: 0.75rem;
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--foreground);
+  color: rgba(255, 255, 255, 0.8);
 }
 
-.header-brand svg {
-  color: var(--primary-light);
-}
+
 
 .header-actions {
   display: flex;
@@ -126,8 +135,8 @@ body {
 }
 
 .btn-header {
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: 10px;
   padding: 0.5rem 1rem;
   color: var(--foreground);
@@ -141,27 +150,28 @@ body {
 }
 
 .btn-header:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
+  background: var(--grey-light);
+  border-color: var(--border);
 }
 
 .btn-header.btn-accent {
-  background: linear-gradient(135deg, var(--accent), #059669);
-  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .btn-header.btn-accent:hover {
-  background: linear-gradient(135deg, #34d399, var(--accent));
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .btn-header.btn-cloud {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .btn-header.btn-cloud:hover {
-  background: linear-gradient(135deg, #818cf8, #a78bfa);
+  background: var(--grey-light);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Sync indicator - small pulsing dot */
@@ -204,12 +214,12 @@ body {
   top: calc(100% + 0.5rem);
   right: 0;
   min-width: 180px;
-  background: rgba(30, 30, 40, 0.95);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  background: var(--grey-panel);
+  backdrop-filter: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
   padding: 0.5rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   z-index: 1000;
   animation: dropdownFade 0.2s ease;
 }
@@ -243,17 +253,15 @@ body {
 }
 
 .dropdown-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--grey-light);
 }
 
-.dropdown-icon {
-  font-size: 1rem;
-}
+
 
 /* Cloud modal specific styles */
 .modal-content {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
-  border: 1px solid var(--glass-border);
+  background: var(--grey-panel);
+  border: 1px solid var(--border);
   border-radius: 20px;
   padding: 2rem;
   max-width: 450px;
@@ -282,8 +290,8 @@ body {
 
 .modal-input {
   width: 100%;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--glass-border);
+  background: var(--grey-dark);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 0.875rem 1rem;
   color: var(--foreground);
@@ -312,13 +320,13 @@ body {
 }
 
 .modal-btn-cancel {
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
+  background: transparent;
+  border: 1px solid var(--border);
   color: var(--foreground);
 }
 
 .modal-btn-cancel:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--grey-light);
 }
 
 .modal-btn-save {
@@ -379,7 +387,7 @@ body {
   background:
     radial-gradient(ellipse at top, rgba(99, 102, 241, 0.15), transparent 50%),
     radial-gradient(ellipse at bottom right, rgba(16, 185, 129, 0.1), transparent 50%),
-    linear-gradient(180deg, var(--background), #1e293b);
+    linear-gradient(180deg, var(--grey-dark), var(--grey-dark));
 }
 
 /* Grid pattern overlay */
@@ -411,8 +419,8 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -428,8 +436,8 @@ body {
 }
 
 .modal {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
-  border: 1px solid var(--glass-border);
+  background: var(--grey-panel);
+  border: 1px solid var(--border);
   border-radius: 20px;
   padding: 2rem;
   max-width: 600px;
@@ -460,8 +468,8 @@ body {
 .modal textarea {
   width: 100%;
   min-height: 200px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--glass-border);
+  background: var(--grey-dark);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1rem;
   color: var(--foreground);
@@ -506,8 +514,8 @@ body {
   position: fixed;
   bottom: 2rem;
   right: 2rem;
-  background: rgba(30, 41, 59, 0.95);
-  border: 1px solid var(--glass-border);
+  background: var(--grey-panel);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1rem 1.5rem;
   display: flex;
@@ -538,33 +546,15 @@ body {
   border-left: 3px solid #ef4444;
 }
 
-/* Logo/Title */
-.app-title {
-  position: fixed;
-  bottom: 1rem;
-  left: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--foreground);
-  opacity: 0.8;
-  z-index: 100;
-}
 
-.app-title svg {
-  width: 28px;
-  height: 28px;
-}
 
 /* Help tooltip */
 .help-tooltip {
   position: fixed;
   bottom: 1rem;
   right: 1rem;
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
+  background: var(--grey-panel);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 0.75rem 1rem;
   font-size: 0.75rem;
