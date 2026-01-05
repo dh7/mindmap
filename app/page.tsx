@@ -13,13 +13,20 @@ const TAG_LLM_WRITE: SystemTag = 'LLMWrite';
 // User tag for mindmap organization
 const TAG_MINDMAP = 'mindmap';
 
-// OAuth configuration
-const CLIENT_ID = process.env.NEXT_PUBLIC_MINDCACHE_APP_ID || '';
+// OAuth configuration - require env variables to be set
+const CLIENT_ID = process.env.NEXT_PUBLIC_MINDCACHE_APP_ID;
+const REDIRECT_URI = process.env.NEXT_PUBLIC_APP_URL;
+
+if (!CLIENT_ID) {
+  throw new Error('Missing required environment variable: NEXT_PUBLIC_MINDCACHE_APP_ID');
+}
+if (!REDIRECT_URI) {
+  throw new Error('Missing required environment variable: NEXT_PUBLIC_APP_URL');
+}
+
 const oauth = new OAuthClient({
   clientId: CLIENT_ID,
-  authUrl: process.env.NEXT_PUBLIC_MINDCACHE_AUTH_URL || 'https://api.mindcache.dev/oauth/authorize',
-  tokenUrl: process.env.NEXT_PUBLIC_MINDCACHE_TOKEN_URL || 'https://api.mindcache.dev/oauth/token',
-  redirectUri: process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI || 'http://localhost:3001',
+  redirectUri: REDIRECT_URI,
   scopes: ['read', 'write']
 });
 
@@ -146,6 +153,7 @@ export default function Home() {
   // OAuth authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  const [connectedInstanceId, setConnectedInstanceId] = useState<string | null>(null);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -172,7 +180,6 @@ export default function Home() {
         // Handle OAuth callback if code is present in URL
         if (window.location.search.includes('code=')) {
           console.log('🔐 Handling OAuth callback...');
-          console.log('🔐 Token URL:', process.env.NEXT_PUBLIC_MINDCACHE_TOKEN_URL || 'https://api.mindcache.dev/oauth/token');
           await oauth.handleCallback();
           console.log('🔐 OAuth callback handled');
           console.log('🔐 isAuthenticated:', oauth.isAuthenticated());
@@ -406,6 +413,7 @@ export default function Home() {
     }
 
     console.log('☁️ Creating MindCache with cloud config, instanceId:', instanceId);
+    setConnectedInstanceId(instanceId);
     const mc = new MindCache({
       accessLevel: 'admin', // Allow system tag operations
       cloud: {
@@ -423,10 +431,29 @@ export default function Home() {
 
     // Connect and subscribe
     console.log('☁️ Waiting for sync...');
-    mc.waitForSync().then(() => {
+    mc.waitForSync().then(async () => {
       console.log('☁️ waitForSync resolved!');
       setCloudConnected(true);
       console.log('☁️ Connected to MindCache cloud');
+
+      // Monitor WebSocket connection status via internal CloudAdapter
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const adapter = (mc as any)._cloudAdapter;
+      if (adapter?.ws) {
+        const ws = adapter.ws as WebSocket;
+        const originalOnClose = ws.onclose;
+        ws.onclose = (event) => {
+          console.log('☁️ WebSocket disconnected');
+          setCloudConnected(false);
+          if (originalOnClose) originalOnClose.call(ws, event);
+        };
+        const originalOnOpen = ws.onopen;
+        ws.onopen = (event) => {
+          console.log('☁️ WebSocket reconnected');
+          setCloudConnected(true);
+          if (originalOnOpen) originalOnOpen.call(ws, event);
+        };
+      }
 
       // Refresh function to update list of mindmaps (debounced)
       let refreshTimeout: NodeJS.Timeout;
@@ -491,18 +518,15 @@ export default function Home() {
         }, 500);
       };
 
-      // Initial list load
+      // Initial list load - this will set activeMindmap to an existing key if available,
+      // or create a default mindmap ONLY if none exist
       refreshMindmapList();
 
-      // Ensure the CURRENT active document exists (creates if not present)
-      // This is required for document-type keys in MindCache
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (!(mc as any).get_document(activeMindmap)) {
-        console.log('☁️ Initializing document-type key', activeMindmap);
-        // Note: we usually do this in refreshMindmapList for new keys, but good fallback
-        mc.set_value(activeMindmap, '', { type: 'document' });
-        mc.addTag(activeMindmap, TAG_MINDMAP);
-      }
+      // Wait a tick for refreshMindmapList's setTimeout to complete before loading content
+      await new Promise(resolve => setTimeout(resolve, 600));
+
+      // Now activeMindmap should be set to an existing key (or the newly created default)
+      const currentKey = activeMindmapRef.current;
 
       // Load initial data from cloud and store in state
       // Skip if we just renamed (skipCloudLoadRef is set)
@@ -510,9 +534,9 @@ export default function Home() {
         console.log('☁️ Skipping cloud load after rename');
         skipCloudLoadRef.current = false;
       } else {
-        const cloudMermaid = mc.get_value(activeMindmap) as string;
+        const cloudMermaid = mc.get_value(currentKey) as string;
         if (cloudMermaid) {
-          console.log('☁️ Loading initial mindmap from cloud');
+          console.log('☁️ Loading initial mindmap from cloud:', currentKey);
           setInitialMermaid(cloudMermaid);
           lastSentMermaid = cloudMermaid; // Track as "known"
         } else {
@@ -577,7 +601,7 @@ export default function Home() {
       mc.disconnect();
       setCloudConnected(false);
     };
-  }, [activeMindmap, isAuthenticated, authLoading]); // Re-run effect when activeMindmap or auth changes
+  }, [isAuthenticated, authLoading]); // Only re-run on auth changes, not on activeMindmap changes
 
   const handleCreateMindmap = useCallback(() => {
     const mc = mindCacheRef.current;
@@ -629,6 +653,10 @@ export default function Home() {
     // Activate new
     mc.systemAddTag(key, TAG_LLM_READ);
     mc.systemAddTag(key, TAG_LLM_WRITE);
+
+    // Load the new mindmap's data immediately
+    const mermaid = mc.get_value(key) as string;
+    setInitialMermaid(mermaid || '');
 
     setActiveMindmap(key);
     setMindmapMenuOpen(false);
@@ -757,7 +785,12 @@ export default function Home() {
           <Icons.Brain />
           <span>MindMap</span>
           {cloudConnected && (
-            <span className="sync-indicator" title="Synced to cloud">
+            <span
+              className="sync-indicator"
+              title="Click to see Instance ID"
+              onClick={() => alert(`Instance ID: ${connectedInstanceId}`)}
+              style={{ cursor: 'pointer' }}
+            >
               <span className="sync-dot"></span>
             </span>
           )}
@@ -884,7 +917,7 @@ export default function Home() {
 
       {/* Mind Map */}
       <div className="mindmap-content">
-        {cloudLoading ? (
+        {cloudLoading || initialMermaid === null ? (
           <div className="loading-container">
             <div className="loading-spinner"></div>
             <p>Loading from cloud...</p>
